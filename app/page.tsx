@@ -1,11 +1,12 @@
 // This week's brief: pastel hero with tiles, a topic overview grid, and one topic at a time (picked
 // here or from the left sidebar) — plus "You missed this" and the Admin panel.
 import { q, q1, activeTopics } from "@/lib/db";
-import { briefItems, FOOTER, type BriefRow, type DashboardTopic, type ItemView } from "@/lib/brief";
+import { briefItems, FOOTER, olderSql, type BriefRow, type DashboardTopic, type ItemView } from "@/lib/brief";
 import { istShort } from "@/lib/time";
 import { addMissed } from "./actions";
 import { Shell } from "./shell";
 import { TopicExplorer } from "./explorer";
+import { Funnel, Headline, PulseLine } from "./landing";
 import { pc } from "./palette";
 import { AdminPanel, Notice, PaperCard, RunStatus, Tile, fmt } from "./ui";
 
@@ -56,6 +57,17 @@ export default async function BriefPage({ searchParams }: { searchParams: Promis
   const topicsWithPapers = d ? d.topics.filter((t) => t.counts.relevant > 0).length : 0;
   const waiting = d ? d.topline.topics.reduce((s, t) => s + t.pending + t.not_assessed, 0) : 0;
   const zeroTopics = d ? d.topline.topics.filter((t) => t.checked === 0).map((t) => t.name) : [];
+  // Funnel middle step: distinct new papers judged on-topic for any active topic in the brief's week
+  // (same rules as the per-topic "on-topic" counts, without double-counting papers in two topics).
+  const onTopic = d && brief
+    ? (await q1<{ n: number }>(
+        `SELECT count(DISTINCT pt.paper_id)::int AS n FROM paper_topics pt JOIN papers p ON p.id = pt.paper_id
+           JOIN topics t ON t.id = pt.topic_id AND t.active
+         WHERE p.first_seen_at >= $1 AND p.first_seen_at < $2 AND p.confirm_status = 'confirmed'
+           AND NOT ${olderSql("p", "$1")} AND pt.status = 'assessed' AND pt.relevant`,
+        [brief.week_start, brief.week_end],
+      ))?.n ?? 0
+    : 0;
 
   const overview = d ? (
     <div className="topic-grid">
@@ -83,7 +95,7 @@ export default async function BriefPage({ searchParams }: { searchParams: Promis
           <div className="spread" style={{ alignItems: "flex-start" }}>
             <div>
               <div className="eyebrow">This week&apos;s brief</div>
-              <h1>{d ? `Week of ${d.label}` : "Research Pulse"}</h1>
+              <Headline text={d ? `Week of ${d.label}` : "Research Pulse"} />
               {d && (
                 <p className="small muted" style={{ marginTop: 6 }}>
                   Email {brief?.email_status === "sent" ? `sent ${istShort(brief.sent_at)}` : brief?.email_status ?? "not sent"} ·{" "}
@@ -107,12 +119,14 @@ export default async function BriefPage({ searchParams }: { searchParams: Promis
           </div>
           {d && (
             <>
+              <PulseLine />
               <div className="tiles">
                 <Tile tone={0} num={d.topline.papers_checked} label="papers checked" sub="new this week" />
                 <Tile tone={1} num={d.topics.length} label="topics covered" sub={`${topicsWithPapers} with on-topic papers`} />
                 <Tile tone={2} num={inBrief} label="papers in this brief" sub="shown in full" />
                 <Tile tone={3} num={d.topline.blogs_checked} label="blogs checked" sub={`${fmt(d.topline.blogs_no_paper)} with no paper`} />
               </div>
+              <Funnel checked={d.topline.papers_checked} onTopic={onTopic} inBrief={inBrief} href={`/papers?brief=${brief!.id}`} />
               <p className="xsmall muted" style={{ marginTop: 12 }}>
                 {d.topline.older_discussed ? `${fmt(d.topline.older_discussed)} older papers discussed this week are listed separately. ` : ""}
                 {zeroTopics.length ? `Topics with 0 papers: ${zeroTopics.join(", ")}. ` : "Every topic had papers. "}

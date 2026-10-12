@@ -118,6 +118,12 @@ img { max-width: 100%; height: auto; }
 .side-topic span.name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-topic .count { flex: none; }
 .side-topic.active { background: var(--pc-bg); color: var(--pc-fg); box-shadow: none; }
+/* Sliding highlight (app/frame.tsx): until JS places it, the link's own .active style shows */
+.side-nav { position: relative; }
+.side-pill { position: absolute; left: 0; right: 0; top: 0; height: 0; border-radius: 10px; background: var(--surface); box-shadow: var(--shadow); opacity: 0; pointer-events: none; z-index: 0; }
+.side-nav.has-pill > .side-pill { opacity: 1; }
+.side-nav > .side-link { z-index: 1; }
+.side-nav.has-pill > .side-link.active { background: transparent; box-shadow: none; }
 .side-foot { margin-top: auto; padding: 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
 
 .main { min-width: 0; }
@@ -137,6 +143,23 @@ img { max-width: 100%; height: auto; }
   background: radial-gradient(1200px 300px at 0% 0%, var(--p0-bg), transparent 60%), radial-gradient(900px 300px at 100% 0%, var(--p3-bg), transparent 60%), var(--surface);
   border: 1px solid var(--line); box-shadow: var(--shadow);
 }
+/* Landing header (app/landing.tsx): headline words, heartbeat line, funnel */
+h1.words .w { display: inline-block; overflow: hidden; vertical-align: bottom; padding: 0.06em 0 0.1em; margin: -0.06em 0 -0.1em; }
+h1.words .w > span { display: inline-block; }
+.pulse-line { height: 40px; margin-top: 14px; }
+.pulse-line svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.pulse-line path { fill: none; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.pl-base { stroke: url(#pulse-grad); stroke-width: 2; }
+.pl-glow { stroke: var(--accent); stroke-width: 3; opacity: 0; filter: drop-shadow(0 0 5px var(--p0-dot)); }
+.pulse-line + .tiles { margin-top: 10px; }
+.funnel { margin-top: 18px; display: grid; gap: 8px; }
+.f-row { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 16px; align-items: center; }
+.f-text { font-size: 13.5px; color: var(--muted); }
+.f-num { font-weight: 750; font-size: 15px; color: var(--pc-fg); }
+.f-track { height: 12px; display: flex; justify-content: center; }
+.f-bar { height: 100%; border-radius: 999px; background: var(--pc-dot); transform-origin: center; }
+.f-note { font-size: 12.5px; justify-self: start; }
+@media (max-width: 700px) { .f-row { grid-template-columns: 1fr; gap: 4px; } }
 .section { margin-top: 36px; }
 .section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
 .muted { color: var(--muted); }
@@ -343,7 +366,7 @@ tr:target td { background: var(--accent-soft); }
 /* Reveal on scroll: fade + rise, staggered via --d. The selector list must match app/motion.tsx.
    "motion" is set before first paint by the inline script in layout.tsx and removed after 2.5 s if
    the motion component never starts, so content can never stay hidden. */
-.motion :is(.hero, .tile, .topic-card, .topic-band, .paper, .card, .bar-row, .step, .tool, .also, .more-link, .view-bar, .table-wrap, .chips > .chip, .quiet, tbody tr:nth-child(-n+40)):not(.rp-in) { opacity: 0; transform: translateY(16px); }
+.motion :is(.hero, .tile, .topic-card, .topic-band, .paper, .card, .bar-row, .step, .tool, .also, .more-link, .view-bar, .table-wrap, .chips > .chip, .quiet, .f-row, tbody tr:nth-child(-n+40)):not(.rp-in) { opacity: 0; transform: translateY(16px); }
 .motion .rp-in { opacity: 1; transform: none; transition: opacity 0.55s ease var(--d, 0ms), transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) var(--d, 0ms), box-shadow 0.2s, border-color 0.2s; }
 .motion .topic-card.rp-in:hover { transform: translateY(-3px); transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; }
 .motion .paper.rp-in:hover { transform: translateY(-1px); transition: transform 0.2s, box-shadow 0.2s; }
@@ -390,6 +413,41 @@ button, .btn, .chip, .side-link, .more-link { transition: background 0.15s, bord
 .scroll-progress { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 60; transform-origin: left center; transform: scaleX(0); background: linear-gradient(90deg, var(--p0-dot), var(--p3-dot), var(--p1-dot), var(--p2-dot)); pointer-events: none; }
 .to-top { position: fixed; right: 22px; bottom: 22px; z-index: 50; border-radius: 999px; padding: 10px 16px; box-shadow: var(--shadow-hover); background: var(--surface); opacity: 0; transform: translateY(16px); pointer-events: none; transition: opacity 0.25s, transform 0.25s; }
 .to-top.show { opacity: 1; transform: none; pointer-events: auto; }
+
+/* ---------- Landing intro: headline → heartbeat line → numbers → funnel ---------- */
+.motion h1.words { animation: none; }
+.motion h1.words .w > span { animation: wordUp 0.75s cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: calc(var(--i) * 90ms + 120ms); }
+@keyframes wordUp { from { transform: translateY(110%); } to { transform: none; } }
+
+/* The line draws itself, then a soft glow sweeps along it every few seconds */
+.motion .pl-base { stroke-dasharray: 1; stroke-dashoffset: 1; animation: plDraw 1.5s cubic-bezier(0.45, 0, 0.2, 1) 0.4s forwards; }
+@keyframes plDraw { to { stroke-dashoffset: 0; } }
+.motion .pl-glow { stroke-dasharray: 0.07 1.2; animation: plSweep 4.5s linear 2.1s infinite; }
+@keyframes plSweep { 0% { stroke-dashoffset: 0.07; opacity: 0; } 6% { opacity: 1; } 48% { stroke-dashoffset: -1; opacity: 1; } 54%, 100% { stroke-dashoffset: -1; opacity: 0; } }
+
+/* Funnel bars grow from the centre, one after another (delays from app/motion.tsx) */
+.motion .f-row:not(.rp-in) .f-bar { transform: scaleX(0); }
+.motion .f-row.rp-in .f-bar { transform: scaleX(1); transition: transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--d, 0ms) + 120ms); }
+
+/* Repeat visit in the same tab: what is on screen appears at once */
+.intro-seen h1.words .w > span, .intro-seen .pl-base { animation: none !important; stroke-dashoffset: 0; }
+.instant *, .instant *::before, .instant *::after { transition: none !important; }
+
+/* Topic cards: cursor spotlight + slight tilt (mouse/trackpad only; position from app/motion.tsx) */
+.topic-card::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.25s;
+  background: radial-gradient(320px circle at var(--mx, 50%) var(--my, 0%), color-mix(in srgb, var(--pc-dot) 32%, transparent), transparent 70%);
+}
+.topic-card > span:not(.ripple) { position: relative; z-index: 1; }
+.topic-card:hover { text-decoration: none; }
+@media (hover: hover) and (pointer: fine) {
+  .motion .topic-card.rp-in:hover::after { opacity: 1; }
+  .motion .topic-card.rp-in:hover { transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(-3px); transition: transform 0.12s ease-out, box-shadow 0.2s, border-color 0.2s; }
+}
+
+/* Sidebar highlight glides between links */
+.motion .side-pill { transition: transform 0.4s cubic-bezier(0.3, 1.25, 0.4, 1), height 0.3s, background-color 0.3s, opacity 0.2s; }
+.motion .side-pill.no-slide { transition: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .scroll-progress, .to-top { display: none; }

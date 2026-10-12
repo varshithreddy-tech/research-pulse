@@ -1,6 +1,6 @@
 "use client";
 // App frame: left sidebar (pages + this week's topics), mobile drawer, main area.
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Icon } from "./icons";
 import { pc } from "./palette";
@@ -21,10 +21,61 @@ const PAGES = [
   { href: "/how", label: "How it works", icon: Icon.how },
 ];
 
+/**
+ * Sliding highlight behind the active link of one sidebar group. It remembers where it was (this tab
+ * only), so after a page load it glides from the previous page's link to the new one. Until it is
+ * placed, the link's own .active style shows — so without JS nothing changes.
+ */
+function useSlidingPill(key: string, deps: unknown[]) {
+  const nav = useRef<HTMLDivElement>(null);
+  const pill = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const box = nav.current;
+    const p = pill.current;
+    if (!box || !p) return;
+    const active = box.querySelector<HTMLElement>(".side-link.active");
+    if (!active || !active.offsetHeight) {
+      box.classList.remove("has-pill");
+      return;
+    }
+    let prev: { top: number; height: number; bg: string } | null = null;
+    try {
+      prev = JSON.parse(sessionStorage.getItem(`rp-pill-${key}`) ?? "null");
+    } catch {}
+    const next = {
+      top: active.offsetTop,
+      height: active.offsetHeight,
+      bg: active.classList.contains("side-topic") ? getComputedStyle(active).getPropertyValue("--pc-bg").trim() : "",
+    };
+    const place = (v: { top: number; height: number; bg: string }) => {
+      p.style.transform = `translateY(${v.top}px)`;
+      p.style.height = `${v.height}px`;
+      p.style.background = v.bg;
+    };
+    if (!box.classList.contains("has-pill") && prev) {
+      // First placement on this page: start where the last page left it, then glide.
+      p.classList.add("no-slide");
+      place(prev);
+      box.classList.add("has-pill");
+      void p.offsetWidth;
+      p.classList.remove("no-slide");
+    }
+    box.classList.add("has-pill");
+    place(next);
+    try {
+      sessionStorage.setItem(`rp-pill-${key}`, JSON.stringify(next));
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return { nav, pill };
+}
+
 export function Frame(props: { topics: SideTopic[]; week: string | null; shortlist: number; children: React.ReactNode }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const [hash, setHash] = useState("");
+  const menu = useSlidingPill("menu", [path, hash, open]);
+  const topicsPill = useSlidingPill("topics", [path, hash, open]);
 
   useEffect(() => {
     const read = () => setHash(window.location.hash);
@@ -49,7 +100,8 @@ export function Frame(props: { topics: SideTopic[]; week: string | null; shortli
 
         <nav>
           <div className="side-label">Menu</div>
-          <div className="side-nav">
+          <div className="side-nav" ref={menu.nav}>
+            <span className="side-pill" ref={menu.pill} aria-hidden="true" />
             {PAGES.map((p) => {
               const active = path === p.href && !(p.href === "/" && hash.startsWith("#t-"));
               const I = p.icon;
@@ -67,7 +119,8 @@ export function Frame(props: { topics: SideTopic[]; week: string | null; shortli
         {props.topics.length > 0 && (
           <nav aria-label="This week's topics">
             <div className="side-label">This week&apos;s topics</div>
-            <div className="side-nav">
+            <div className="side-nav" ref={topicsPill.nav}>
+              <span className="side-pill" ref={topicsPill.pill} aria-hidden="true" />
               {props.topics.map((t) => {
                 const active = path === "/" && hash === `#t-${t.id}`;
                 return (
