@@ -4,6 +4,7 @@ import { istShort, istWeekStart, weekLabel } from "@/lib/time";
 import { windowCounts } from "@/lib/brief";
 import { Nav } from "../nav";
 import { AdminButtons, Notice, RunStatus, fmt, usd } from "../ui";
+import { runCosts } from "@/lib/runGuard";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ interface WeekRow {
   missed: number;
 }
 
-export default async function CoveragePage({ searchParams }: { searchParams: Promise<{ week?: string; msg?: string }> }) {
+export default async function CoveragePage({ searchParams }: { searchParams: Promise<{ week?: string; msg?: string; link?: string }> }) {
   const sp = await searchParams;
   const thisWeek = istWeekStart(new Date());
   const ws = sp.week ? new Date(sp.week) : thisWeek;
@@ -80,13 +81,14 @@ export default async function CoveragePage({ searchParams }: { searchParams: Pro
     id: number; kind: string; trigger: string; status: string; started_at: string; heartbeat_at: string; finished_at: string | null;
     hops: number; tavily_searches: number; per_category: Record<string, { fetched?: number; new?: number; error?: string }>;
     errors: { at: string; where: string; message: string }[];
-  }>(`SELECT * FROM runs ORDER BY id DESC LIMIT 15`);
+  }>(`SELECT * FROM runs ORDER BY id DESC LIMIT 20`);
+  const costs = await runCosts(runs.map((r) => r.id));
 
   return (
     <>
       <Nav />
       <main>
-        <Notice msg={sp.msg} />
+        <Notice msg={sp.msg} link={sp.link} />
         <div className="spread">
           <h1>Cost &amp; coverage</h1>
           <AdminButtons />
@@ -198,12 +200,12 @@ export default async function CoveragePage({ searchParams }: { searchParams: Pro
         <h2>Recent runs</h2>
         <div className="scroll">
           <table>
-            <thead><tr><th>Run</th><th>Started</th><th>Status</th><th className="num">Hops</th><th>arXiv (new / fetched)</th><th className="num">Tavily</th><th>Errors</th></tr></thead>
+            <thead><tr><th>Run</th><th>Started</th><th>Status</th><th className="num">Hops</th><th>arXiv (new / fetched)</th><th className="num">Tavily</th><th className="num">Gemini calls</th><th className="num">Gemini cost</th><th>Errors</th></tr></thead>
             <tbody>
               {runs.map((r) => {
                 const cats = Object.entries(r.per_category ?? {});
                 return (
-                  <tr key={r.id}>
+                  <tr key={r.id} id={`run-${r.id}`}>
                     <td>#{r.id} {r.kind} <span className="muted">({r.trigger})</span></td>
                     <td>{istShort(r.started_at)}</td>
                     <td><RunStatus status={r.status} heartbeat={r.heartbeat_at} /></td>
@@ -218,6 +220,8 @@ export default async function CoveragePage({ searchParams }: { searchParams: Pro
                         : "—"}
                     </td>
                     <td className="num">{r.tavily_searches}</td>
+                    <td className="num">{fmt(costs.get(r.id)?.calls)}</td>
+                    <td className="num">{usd(costs.get(r.id)?.cost)}</td>
                     <td className="small">
                       {r.errors?.length ? (
                         <details>

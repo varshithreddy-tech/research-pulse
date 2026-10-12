@@ -14,7 +14,10 @@ export const BUDGET_MS = 250_000;
 export const MAX_HOPS = 12;
 const LOCK = "pipeline";
 
-export async function createRun(kind: "daily" | "weekly", trigger: "cron" | "admin"): Promise<number> {
+/** cron = Vercel Cron · admin = API call with CRON_SECRET · dashboard = public button (guarded, capped). */
+export type Trigger = "cron" | "admin" | "dashboard";
+
+export async function createRun(kind: "daily" | "weekly", trigger: Trigger): Promise<number> {
   const r = await q1<{ id: number }>(`INSERT INTO runs (kind, trigger) VALUES ($1, $2) RETURNING id`, [kind, trigger]);
   return r!.id;
 }

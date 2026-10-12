@@ -1,12 +1,13 @@
 // Entry points shared by the cron routes, the admin API routes and the dashboard buttons.
 // Each returns at once; the work runs in the background via `after()` (bounded by maxDuration).
+// Triggers: "cron" (Vercel Cron), "admin" (API with CRON_SECRET), "dashboard" (public buttons — guarded).
 import { after } from "next/server";
 import { appUrl } from "../env";
-import { createRun } from "./common";
+import { createRun, type Trigger } from "./common";
 import { dailyInvocation } from "./daily";
 import { startWeekly, weeklyInvocation } from "./weekly";
 
-export async function launchDaily(trigger: "cron" | "admin", origin: string, cont?: { runId: number; hop: number }): Promise<{ runId: number; hop: number }> {
+export async function launchDaily(trigger: Trigger, origin: string, cont?: { runId: number; hop: number }): Promise<{ runId: number; hop: number }> {
   const runId = cont?.runId ?? (await createRun("daily", trigger));
   const hop = cont?.hop ?? 0;
   after(() => dailyInvocation(runId, hop, appUrl(origin)));
@@ -14,7 +15,7 @@ export async function launchDaily(trigger: "cron" | "admin", origin: string, con
 }
 
 export async function launchWeekly(
-  trigger: "cron" | "admin",
+  trigger: Trigger,
   origin: string,
   cont?: { runId: number; briefId: number; hop: number },
 ): Promise<{ runId: number; briefId: number; hop: number }> {

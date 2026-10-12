@@ -1,5 +1,7 @@
 // Topics: Kavita adds, edits and pauses topics here — no code. Gemini reads this list before every judgment.
-import { allTopics, type Topic } from "@/lib/db";
+import { allTopics, q, type Topic } from "@/lib/db";
+import { describeChanges, type Changes } from "@/lib/topicLog";
+import { istShort } from "@/lib/time";
 import { saveTopic, setTopicActive } from "../actions";
 import { Nav } from "../nav";
 import { Notice } from "../ui";
@@ -26,6 +28,9 @@ function TopicForm({ t }: { t?: Topic }) {
 export default async function TopicsPage({ searchParams }: { searchParams: Promise<{ msg?: string }> }) {
   const sp = await searchParams;
   const topics = await allTopics();
+  const log = await q<{ id: number; topic_name: string; action: string; changes: Changes; created_at: string }>(
+    `SELECT id, topic_name, action, changes, created_at FROM topic_changes ORDER BY id DESC LIMIT 50`,
+  );
   return (
     <>
       <Nav />
@@ -33,7 +38,8 @@ export default async function TopicsPage({ searchParams }: { searchParams: Promi
         <Notice msg={sp.msg} />
         <h1>Topics</h1>
         <p className="muted small" style={{ marginTop: 0 }}>
-          Changes apply from the next run. A new topic (or new categories) also queues the last 7 days of papers in those categories.
+          Anyone with the link can edit topics; every change is logged below. Changes apply from the next run. A new topic (or new
+          categories) also queues the last 7 days of papers in those categories.
           Common categories: cs.AI, cs.CL, cs.LG, cs.CV, cs.IR, cs.SE, cs.CR, cs.RO, cs.MA, cs.PL, cs.MM, eess.IV, stat.ML.
         </p>
         {topics.map((t) => (
@@ -58,6 +64,25 @@ export default async function TopicsPage({ searchParams }: { searchParams: Promi
         <div className="card">
           <TopicForm />
         </div>
+        <h2 id="log">Change log</h2>
+        {log.length === 0 && <div className="card muted small">No topic changes yet.</div>}
+        {log.length > 0 && (
+          <div className="scroll">
+            <table>
+              <thead><tr><th>When (IST)</th><th>Topic</th><th>Change</th><th>What changed</th></tr></thead>
+              <tbody>
+                {log.map((c) => (
+                  <tr key={c.id}>
+                    <td>{istShort(c.created_at)}</td>
+                    <td>{c.topic_name}</td>
+                    <td>{c.action}</td>
+                    <td>{describeChanges(c.action, c.changes).map((l, i) => <div key={i}>{l}</div>)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </main>
     </>
   );

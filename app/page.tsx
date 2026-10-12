@@ -8,7 +8,7 @@ import { AdminButtons, MarkButtons, Notice, RunStatus } from "./ui";
 
 export const dynamic = "force-dynamic";
 
-export default async function BriefPage({ searchParams }: { searchParams: Promise<{ brief?: string; msg?: string }> }) {
+export default async function BriefPage({ searchParams }: { searchParams: Promise<{ brief?: string; msg?: string; link?: string }> }) {
   const sp = await searchParams;
   const briefs = await q<{ id: number; week_start: string; week_end: string; status: string; created_at: string }>(
     `SELECT id, week_start, week_end, status, created_at FROM briefs ORDER BY id DESC LIMIT 30`,
@@ -27,7 +27,7 @@ export default async function BriefPage({ searchParams }: { searchParams: Promis
     <>
       <Nav />
       <main>
-        <Notice msg={sp.msg} />
+        <Notice msg={sp.msg} link={sp.link} />
         <div className="spread">
           <div>
             <h1>This week&apos;s brief</h1>

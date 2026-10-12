@@ -1,13 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { assertRequiredSecrets } from "@/lib/requiredSecrets";
+import { isCronAuthorized } from "@/lib/auth";
 
-describe("never run unlocked", () => {
-  it("refuses when DASHBOARD_PASSWORD or CRON_SECRET is empty", () => {
-    expect(() => assertRequiredSecrets({ CRON_SECRET: "x" })).toThrow(/DASHBOARD_PASSWORD is empty/);
-    expect(() => assertRequiredSecrets({ DASHBOARD_PASSWORD: "x", CRON_SECRET: "  " })).toThrow(/CRON_SECRET is empty/);
-    expect(() => assertRequiredSecrets({})).toThrow(/DASHBOARD_PASSWORD and CRON_SECRET are empty/);
+describe("CRON_SECRET stays required", () => {
+  it("refuses to start when CRON_SECRET is empty", () => {
+    expect(() => assertRequiredSecrets({})).toThrow(/CRON_SECRET is empty/);
+    expect(() => assertRequiredSecrets({ CRON_SECRET: "  " })).toThrow(/CRON_SECRET is empty/);
   });
-  it("starts when both are set", () => {
-    expect(() => assertRequiredSecrets({ DASHBOARD_PASSWORD: "a", CRON_SECRET: "b" })).not.toThrow();
+  it("starts with CRON_SECRET set; no dashboard password needed", () => {
+    expect(() => assertRequiredSecrets({ CRON_SECRET: "b" })).not.toThrow();
+  });
+  it("cron routes accept only the exact bearer secret", () => {
+    process.env.CRON_SECRET = "s3cret";
+    const req = (h?: string) => new Request("https://x/api/daily", h ? { headers: { authorization: h } } : {});
+    expect(isCronAuthorized(req())).toBe(false);
+    expect(isCronAuthorized(req("Bearer wrong!"))).toBe(false);
+    expect(isCronAuthorized(req("Bearer s3cret"))).toBe(true);
   });
 });

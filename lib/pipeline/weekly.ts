@@ -10,12 +10,13 @@ import { rankBrief } from "../steps/rank";
 import { writeBrief } from "../steps/write";
 import {
   BUDGET_MS, MAX_HOPS, chainNext, createRun, finishRun, heartbeat, lockOrWait, nothingPending, pendingCounts, processQueue, unlock,
+  type Trigger,
 } from "./common";
 
 /** Hops spent finishing the daily checks before the brief goes ahead with what is ready. */
 const MAX_WAIT_HOPS = 3;
 
-export async function startWeekly(trigger: "cron" | "admin"): Promise<{ runId: number; briefId: number }> {
+export async function startWeekly(trigger: Trigger): Promise<{ runId: number; briefId: number }> {
   const runId = await createRun("weekly", trigger);
   const r = await q1<{ id: number }>(
     `INSERT INTO briefs (run_id, week_start, week_end) VALUES ($1, now() - interval '7 days', now()) RETURNING id`,

@@ -1,5 +1,3 @@
-import { logout } from "./actions";
-
 export function Nav() {
   return (
     <nav className="top">
@@ -10,9 +8,6 @@ export function Nav() {
         <a href="/topics">Topics</a>
         <a href="/shortlist">Client shortlist</a>
         <a href="/coverage">Cost &amp; coverage</a>
-        <form action={logout} className="inline" style={{ marginLeft: "auto" }}>
-          <button style={{ background: "transparent", color: "#a8a29e", border: "none" }}>Log out</button>
-        </form>
       </div>
     </nav>
   );

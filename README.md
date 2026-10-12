@@ -86,8 +86,7 @@ Before running these, fill in `.env.local` (it is git-ignored). `db:migrate` app
 | `TAVILY_API_KEY` | optional for a first test; the run carries on without it |
 | `DATABASE_URL` | Neon **pooled** connection string |
 | `RESEND_API_KEY`, `KAVITA_EMAIL` | sender is `onboarding@resend.dev`, so `KAVITA_EMAIL` must be the Resend account's own email until a domain is verified |
-| `CRON_SECRET` | protects `/api/daily`, `/api/weekly`, `/api/admin/*`; Vercel Cron sends it automatically |
-| `DASHBOARD_PASSWORD` | **required**: protects the dashboard. The app refuses to build or start if this or `CRON_SECRET` is empty, so it can never be deployed open |
+| `CRON_SECRET` | **required**: protects `/api/daily`, `/api/weekly`, `/api/admin/*` and signs the email feedback links; Vercel Cron sends it automatically. The app refuses to build or start without it |
 | `SEMANTIC_SCHOLAR_API_KEY` | optional; raises the rate limit |
 | `GEMINI_CONCURRENCY` | optional, default 3 parallel Gemini calls (use 1–2 on the free tier) |
 | `ARXIV_BACKFILL_DAYS` | optional, default 2: how far back the very first fetch of a category goes |
@@ -98,7 +97,7 @@ Before running these, fill in `.env.local` (it is git-ignored). `db:migrate` app
 1. Push this repo to GitHub and import it in Vercel. The framework is detected as Next.js.
 2. Add every variable above in **Project → Settings → Environment Variables** (Production).
 3. Deploy. `vercel.json` registers both crons and pins the functions to `sin1`, next to the Neon database in Singapore.
-4. Open the site, log in with `DASHBOARD_PASSWORD`, and press **Run daily now**, then **Make brief now**, to see live data straight away.
+4. Open the site (no login) and press **Run daily now**, then **Make brief now**, to see live data straight away.
 
 Rebuild only the text of an existing brief (one Gemini call, no email): `npm run brief:rebuild -- <briefId>`.
 
@@ -115,6 +114,13 @@ curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://<your-app>.vercel.a
 **Vercel Hobby timing.** On the Hobby plan, cron jobs run at some point within the scheduled hour. The daily run starts between 6:00 and 7:00 AM IST, and **Monday's email arrives between 6:30 and 7:30 AM IST**. The Pro plan runs on the minute.
 
 ## Dashboard
+
+The dashboard is **open to anyone with the link** (no login), with full rights. Because of that:
+- **Run daily now** / **Make brief now** never run twice at once: while a run of that kind is in progress, the button shows "A run is already in progress — started at HH:MM" with a link to it.
+- **Daily caps** (reset at midnight IST): Run daily now 6 per day, Make brief now 3 per day. Scheduled (cron) runs don't count.
+- **Cost & coverage** shows the Gemini calls and cost of every run, so extra runs are visible.
+- **Topics**: every change is logged (what changed, when) on the Topics page.
+- The cron and admin API routes still need `CRON_SECRET`; email feedback links still use signed tokens.
 
 | Page | What Kavita does there |
 |---|---|
