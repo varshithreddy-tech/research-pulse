@@ -2,36 +2,16 @@
 import { q1 } from "@/lib/db";
 import { TYPE_LABEL, aboutText, facts, olderLabel, whyText, type ItemView } from "@/lib/brief";
 import { istShort } from "@/lib/time";
-import { toggleMark, runDailyNow, makeBriefNow } from "./actions";
+import { runDailyNow, makeBriefNow } from "./actions";
+import { MarkButtons } from "./marks";
 import { AutoRefresh } from "./refresh";
+import { pc } from "./palette";
 
-const MARKS: { kind: "read_fully" | "share" | "not_useful"; label: string }[] = [
-  { kind: "read_fully", label: "Read fully" },
-  { kind: "share", label: "Share with a client" },
-  { kind: "not_useful", label: "Not useful" },
-];
+export { MarkButtons };
 
 export const TYPE_BADGE: Record<string, string> = { ...TYPE_LABEL, new_way_to_see_problem: "New way to see a problem" };
 
-export function MarkButtons(props: { paperId: number; itemId: number | null; topicId: number | null; marks: string[] }) {
-  return (
-    <div className="actions">
-      {MARKS.map((m) => {
-        const on = props.marks.includes(m.kind);
-        return (
-          <form key={m.kind} action={toggleMark.bind(null, props.paperId, m.kind, props.itemId, props.topicId)} className="inline">
-            <button className={on ? "on" : ""} title={on ? "Saved — click to undo" : undefined} aria-pressed={on}>
-              {on ? "✓ " : ""}
-              {m.label}
-            </button>
-          </form>
-        );
-      })}
-    </div>
-  );
-}
-
-/** Status / type / score / older badges for a paper. */
+/** Status / type / score / older badges for a paper (pastel). */
 export function PaperBadges(p: {
   type?: string | null;
   score?: number | null;
@@ -44,7 +24,7 @@ export function PaperBadges(p: {
   return (
     <div className="badges">
       {p.children}
-      {p.type && p.type !== "nothing_new" && <span className="badge type">{TYPE_BADGE[p.type] ?? p.type}</span>}
+      {p.type && p.type !== "nothing_new" && <span className={`badge type-${p.type}`}>{TYPE_BADGE[p.type] ?? p.type}</span>}
       <span className={`badge ${p.pub_status === "peer_reviewed" ? "peer" : ""}`} title={p.venue ?? undefined}>
         {p.pub_status === "peer_reviewed" ? "Peer-reviewed" : "Preprint"}
       </span>
@@ -54,28 +34,31 @@ export function PaperBadges(p: {
   );
 }
 
-/** Muted facts line: venue, citations, upvotes, code, Discussed in. */
+/** Muted facts: venue, citations, upvotes, code, Discussed in. */
 export function FactsLine({ i }: { i: ItemView }) {
   const f = facts(i); // [status, citations, upvotes, code, blogs]
   return (
     <div className="facts">
-      {i.pub_status === "peer_reviewed" && i.venue ? `${i.venue} · ` : ""}
-      {f[1]} · {f[2]} ·{" "}
-      {i.code_url ? (
-        <a href={i.code_url} target="_blank" rel="noreferrer">Code shared</a>
-      ) : (
-        f[3]
-      )}
+      {i.pub_status === "peer_reviewed" && i.venue && <span>📄 {i.venue}</span>}
+      <span>📈 {f[1]}</span>
+      <span>👍 {f[2]}</span>
+      <span>
+        {i.code_url ? (
+          <>💻 <a href={i.code_url} target="_blank" rel="noreferrer">Code shared</a></>
+        ) : (
+          <>💻 {f[3]}</>
+        )}
+      </span>
       {i.discussed_in.length > 0 && (
-        <>
-          {" · Discussed in "}
+        <span>
+          📰 Discussed in{" "}
           {i.discussed_in.map((b, k) => (
             <span key={b.url}>
               {k > 0 && ", "}
               <a href={b.url} target="_blank" rel="noreferrer">{b.title}</a>
             </span>
           ))}
-        </>
+        </span>
       )}
     </div>
   );
@@ -84,22 +67,29 @@ export function FactsLine({ i }: { i: ItemView }) {
 /** A paper shown in full in the brief. */
 export function PaperCard({ i }: { i: ItemView }) {
   return (
-    <article className="paper">
+    <article className={`paper ${pc(i.topic_id)}`}>
       <a className="title" href={i.url} target="_blank" rel="noreferrer">{i.title}</a>
       <PaperBadges type={i.type} score={i.score} pub_status={i.pub_status} venue={i.venue} older={i.older} year={i.published_year} />
       <FactsLine i={i} />
-      <div className="label">What it&apos;s about</div>
-      <p>{aboutText(i)}</p>
-      <div className="label">Why it may matter</div>
-      <p>{whyText(i)}</p>
+      <div className="explain">
+        <div>
+          <div className="label">What it&apos;s about</div>
+          <p>{aboutText(i)}</p>
+        </div>
+        <div className="why">
+          <div className="label">Why it may matter</div>
+          <p>{whyText(i)}</p>
+        </div>
+      </div>
       <MarkButtons paperId={i.paper_id} itemId={i.id} topicId={i.topic_id} marks={i.marks} />
     </article>
   );
 }
 
-export function Tile({ num, label, sub }: { num: string | number; label: string; sub?: string }) {
+/** Pastel stat tile. `tone` picks the pastel (0–7). */
+export function Tile({ num, label, sub, tone = 0 }: { num: string | number; label: string; sub?: string; tone?: number }) {
   return (
-    <div className="tile">
+    <div className={`tile pc-${tone}`}>
       <div className="tile-num">{typeof num === "number" ? fmt(num) : num}</div>
       <div className="tile-label">{label}</div>
       {sub && <div className="tile-sub">{sub}</div>}
@@ -122,19 +112,19 @@ export async function AdminPanel() {
   return (
     <section className="card admin" aria-labelledby="admin-h">
       <h3 id="admin-h">Admin</h3>
-      <div className="row" style={{ marginTop: 10 }}>
+      <div className="row" style={{ marginTop: 12 }}>
         <form action={runDailyNow} className="inline">
-          <button>Run daily now</button>
+          <button className="primary">Run daily now</button>
         </form>
         <form action={makeBriefNow} className="inline">
           <button>Make brief now</button>
         </form>
       </div>
-      <p className="small muted" style={{ marginTop: 10 }}>
+      <p className="small muted" style={{ marginTop: 12 }}>
         Run daily now collects today&apos;s new papers (takes 3–10 min). Make brief now builds this week&apos;s brief and emails it
         (takes 2–5 min). Scheduled runs happen automatically every day at 6:00 AM IST and Monday 6:30 AM IST.
       </p>
-      <div className="small" style={{ marginTop: 10, display: "grid", gap: 4 }}>
+      <div className="small" style={{ marginTop: 12, display: "grid", gap: 6 }}>
         <div>
           <span className="muted">Latest daily run:</span>{" "}
           {daily ? (

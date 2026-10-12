@@ -1,5 +1,5 @@
 // How it works — a plain-English tour for first-time visitors (and graders).
-import { Nav } from "../nav";
+import { Shell } from "../shell";
 
 export const metadata = { title: "How it works · Research Pulse" };
 
@@ -49,10 +49,10 @@ const TOOLS: { name: string; role: string }[] = [
 
 export default function HowPage() {
   return (
-    <>
-      <Nav />
+    <Shell>
       <main className="container">
-        <div className="page-head">
+        <div className="page-head hero">
+          <div className="eyebrow">For first-time visitors</div>
           <h1>How it works</h1>
           <p className="sub">
             Kavita advises clients on AI strategy and needs to know what&apos;s actually being published in her topics. Research Pulse reads the
@@ -65,10 +65,13 @@ export default function HowPage() {
         <section className="section">
           <h2 style={{ marginBottom: 12 }}>Six steps</h2>
           <div className="steps">
-            {STEPS.map((s) => (
-              <div key={s.title} className="card step">
-                <h3>{s.title}</h3>
-                <p className="small muted" style={{ marginTop: 6 }}>{s.body}</p>
+            {STEPS.map((s, i) => (
+              <div key={s.title} className={`card step pc-${i}`}>
+                <div className="step-num">{i + 1}</div>
+                <div>
+                  <h3>{s.title}</h3>
+                  <p className="small muted" style={{ marginTop: 6 }}>{s.body}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -89,10 +92,13 @@ export default function HowPage() {
         <section className="section">
           <h2 style={{ marginBottom: 12 }}>Tools used</h2>
           <div className="tools">
-            {TOOLS.map((t) => (
-              <div key={t.name} className="card">
-                <h3>{t.name}</h3>
-                <p className="small muted" style={{ marginTop: 4 }}>{t.role}</p>
+            {TOOLS.map((t, i) => (
+              <div key={t.name} className={`card tool pc-${i}`}>
+                <div className="tool-icon">{t.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}</div>
+                <div>
+                  <h3>{t.name}</h3>
+                  <p className="small muted" style={{ marginTop: 4 }}>{t.role}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -119,6 +125,6 @@ export default function HowPage() {
           </div>
         </section>
       </main>
-    </>
+    </Shell>
   );
 }

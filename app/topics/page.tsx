@@ -4,8 +4,9 @@ import { allTopics, q, type Topic } from "@/lib/db";
 import { describeChanges, type Changes } from "@/lib/topicLog";
 import { istShort } from "@/lib/time";
 import { saveTopic, setTopicActive } from "../actions";
-import { Nav } from "../nav";
+import { Shell } from "../shell";
 import { Notice } from "../ui";
+import { pc } from "../palette";
 
 export const dynamic = "force-dynamic";
 
@@ -34,11 +35,11 @@ export default async function TopicsPage({ searchParams }: { searchParams: Promi
     `SELECT id, topic_name, action, changes, created_at FROM topic_changes ORDER BY id DESC LIMIT 50`,
   );
   return (
-    <>
-      <Nav />
+    <Shell>
       <main className="container">
         <Notice msg={sp.msg} />
-        <div className="page-head">
+        <div className="page-head hero">
+          <div className="eyebrow">What Kavita follows</div>
           <h1>Topics</h1>
           <p className="sub">
             {topics.filter((t) => t.active).length} active · changes apply from the next run. Anyone with the link can edit; every change is logged below.
@@ -46,19 +47,19 @@ export default async function TopicsPage({ searchParams }: { searchParams: Promi
         </div>
 
         {topics.map((t) => (
-          <article key={t.id} className="card" style={t.active ? undefined : { opacity: 0.75 }}>
+          <article key={t.id} className={`card ${pc(t.id)}`} style={{ borderTop: "5px solid var(--pc-dot)", ...(t.active ? {} : { opacity: 0.7 }) }}>
             <div className="spread" style={{ alignItems: "flex-start" }}>
-              <h2 style={{ fontSize: 18 }}>{t.name}</h2>
-              <div className="row">
-                <span className={`badge ${t.active ? "ok" : ""}`}>{t.active ? "Active" : "Paused"}</span>
-                <form action={setTopicActive.bind(null, t.id, !t.active)} className="inline">
-                  <button style={{ padding: "5px 12px", fontSize: 13 }}>{t.active ? "Pause" : "Resume"}</button>
-                </form>
-              </div>
+              <h2 style={{ fontSize: 18, display: "flex", alignItems: "center", gap: 10 }}><span className="dot" style={{ width: 12, height: 12 }} />{t.name}</h2>
+              <form action={setTopicActive.bind(null, t.id, !t.active)} className="inline">
+                <button className={`switch ${t.active ? "on" : ""}`} aria-pressed={t.active} title={t.active ? "Click to pause this topic" : "Click to resume this topic"}>
+                  <span className="track" />
+                  {t.active ? "Active" : "Paused"}
+                </button>
+              </form>
             </div>
             <p className="small" style={{ marginTop: 8 }}>{t.focus}</p>
             <div className="label">arXiv categories</div>
-            <div className="chips">{t.arxiv_categories.map((c) => <span key={c} className="chip">{c}</span>)}</div>
+            <div className="chips">{t.arxiv_categories.map((c) => <span key={c} className="chip soft">{c}</span>)}</div>
             <div className="label">Search words</div>
             <div className="chips">
               {t.search_words.length ? t.search_words.map((w) => <span key={w} className="chip">{w}</span>) : <span className="xsmall faint">none</span>}
@@ -104,6 +105,6 @@ export default async function TopicsPage({ searchParams }: { searchParams: Promi
           )}
         </section>
       </main>
-    </>
+    </Shell>
   );
 }

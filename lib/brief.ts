@@ -268,12 +268,17 @@ export function markLink(base: string, itemId: number, kind: (typeof MARK_KINDS)
 // Email-safe styles (inline only; tables for layout; max 640px). Same card look as the dashboard.
 const E = {
   font: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif",
-  text: "#17202c",
-  muted: "#5c6878",
-  faint: "#8792a1",
-  line: "#e2e6ec",
-  accent: "#1d4ed8",
-  accentSoft: "#eef2fc",
+  text: "#2a2540",
+  muted: "#6b6585",
+  faint: "#9a94b0",
+  line: "#ebe6f3",
+  accent: "#6a58c8",
+  accentSoft: "#ede9fb",
+};
+const EMAIL_TYPE_COLOR: Record<string, [string, string]> = {
+  new_test: ["#e4f0fb", "#33699f"],
+  surprising_result: ["#fdebe1", "#b25e33"],
+  new_way_to_see_problem: ["#ede9fb", "#5a49b8"],
 };
 const EMAIL_TYPE: Record<string, string> = {
   new_test: "New test",
@@ -291,14 +296,14 @@ export function renderEmail(briefId: number, d: DashboardBrief, items: ItemView[
   const topicName = new Map(d.topics.map((x) => [x.topic_id, x.name]));
   const h: string[] = [];
   const t: string[] = [];
-  const btn = `display:inline-block;margin:0 6px 6px 0;padding:8px 14px;border:1px solid #cfd5de;border-radius:8px;background:#ffffff;color:${E.text};text-decoration:none;font-size:13px;font-weight:600`;
+  const btn = `display:inline-block;margin:0 6px 6px 0;padding:8px 14px;border:1px solid #cfd5de;border-radius:999px;background:#ffffff;color:${E.text};text-decoration:none;font-size:13px;font-weight:600`;
   const inBrief = new Set(items.filter((i) => i.in_brief).map((i) => i.paper_id)).size;
   const tile = (num: string, label: string) =>
     `<td width="50%" style="padding:6px"><div style="background:#ffffff;border:1px solid ${E.line};border-radius:10px;padding:12px 14px">` +
     `<div style="font-size:22px;font-weight:700;color:${E.text};line-height:1.2">${esc(num)}</div>` +
     `<div style="font-size:12px;color:${E.muted}">${esc(label)}</div></div></td>`;
 
-  h.push(`<div style="margin:0;padding:24px 12px;background:#f4f5f7;font-family:${E.font};color:${E.text};line-height:1.55">`);
+  h.push(`<div style="margin:0;padding:24px 12px;background:#f7f5fb;font-family:${E.font};color:${E.text};line-height:1.55">`);
   h.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;margin:0 auto;border-collapse:collapse"><tr><td>`);
 
   // Header + tiles
@@ -324,10 +329,10 @@ export function renderEmail(briefId: number, d: DashboardBrief, items: ItemView[
       if (!i) continue;
       const f = facts(i); // [status, citations, upvotes, code, blogs]
       const badges = [
-        i.type && EMAIL_TYPE[i.type] ? pill(EMAIL_TYPE[i.type], E.accentSoft, E.accent) : "",
-        i.pub_status === "peer_reviewed" ? pill("Peer-reviewed", "#ecf7ef", "#166534") : pill("Preprint", "#f1f3f6", E.muted),
-        i.score !== null ? pill(`${i.score}/10 suggested`, "#f1f3f6", E.text) : "",
-        i.older ? pill(olderLabel(i.published_year).replace(" — discussed this week", ""), "#f3efe6", "#6b5b3e") : "",
+        i.type && EMAIL_TYPE[i.type] ? pill(EMAIL_TYPE[i.type], ...EMAIL_TYPE_COLOR[i.type]) : "",
+        i.pub_status === "peer_reviewed" ? pill("Peer-reviewed", "#e3f5ec", "#2c7a52") : pill("Preprint", "#f6f3fb", E.muted),
+        i.score !== null ? pill(`${i.score}/10 suggested`, "#fbe7ee", "#a84468") : "",
+        i.older ? pill(olderLabel(i.published_year).replace(" — discussed this week", ""), "#fdf4d6", "#8a6c14") : "",
       ].join("");
       const factsLine = [
         i.pub_status === "peer_reviewed" && i.venue ? esc(i.venue) : "",

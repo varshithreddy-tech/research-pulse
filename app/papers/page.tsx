@@ -3,9 +3,10 @@
 import { q, q1, allTopics } from "@/lib/db";
 import { olderLabel, olderSql } from "@/lib/brief";
 import { istShort, istWeekStart, weekLabel } from "@/lib/time";
-import { toggleMark } from "../actions";
-import { Nav } from "../nav";
-import { PaperBadges, Relevance, fmt } from "../ui";
+import { Shell } from "../shell";
+import { MarkButtons, PaperBadges, Relevance, fmt } from "../ui";
+import { InstantSearch } from "../search";
+import { pc } from "../palette";
 
 export const dynamic = "force-dynamic";
 
@@ -68,25 +69,6 @@ function link(sp: SP, patch: Partial<SP>): string {
   return `/papers?${qs}`;
 }
 
-/** Compact Read fully / Share / Not useful toggles for table rows. */
-function MiniMarks({ r }: { r: PaperRow }) {
-  const kinds: [string, string][] = [["read_fully", "Read"], ["share", "Share"], ["not_useful", "Not useful"]];
-  return (
-    <div className="row" style={{ gap: 4 }}>
-      {kinds.map(([k, label]) => {
-        const on = r.marks.includes(k);
-        return (
-          <form key={k} action={toggleMark.bind(null, r.id, k as "read_fully" | "share" | "not_useful", r.item_id, r.topic_id)} className="inline">
-            <button className={on ? "on" : ""} style={{ padding: "4px 8px", fontSize: 12 }} aria-pressed={on} title={on ? "Saved — click to undo" : `Mark: ${label}`}>
-              {on ? "✓ " : ""}{label}
-            </button>
-          </form>
-        );
-      })}
-    </div>
-  );
-}
-
 export default async function PapersPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
   const topics = await allTopics();
@@ -147,10 +129,10 @@ export default async function PapersPage({ searchParams }: { searchParams: Promi
   const topicName = topics.find((t) => t.id === topicId)?.name;
 
   return (
-    <>
-      <Nav />
+    <Shell>
       <main className="container">
-        <div className="page-head">
+        <div className="page-head hero">
+          <div className="eyebrow">Every paper checked — nothing hidden</div>
           <h1>All papers</h1>
           <p className="sub">
             Every paper checked {brief ? `for brief #${brief.id}` : "in the week"} of {weekLabel(ws, we)}
@@ -179,7 +161,10 @@ export default async function PapersPage({ searchParams }: { searchParams: Promi
           {brief && <a href={link({ topic: sp.topic, status: sp.status }, {})} className="small">Switch to weekly view</a>}
         </form>
 
-        <div className="chips" style={{ margin: "16px 0" }} role="tablist" aria-label="Status">
+        <div className="row" style={{ margin: "16px 0 4px" }}>
+          <InstantSearch target="list" placeholder={isBlogs ? "Search these blogs…" : "Search these papers — title, summary, topic or reason…"} />
+        </div>
+        <div className="chips" style={{ margin: "12px 0 16px" }} role="tablist" aria-label="Status">
           {Object.entries({ ...STATUS, ...BLOG_STATUS }).map(([k, s]) => (
             <a key={k} href={link(sp, { status: k === "all" ? undefined : k, page: undefined })} className={`chip ${k === status ? "on" : ""}`} aria-current={k === status ? "true" : undefined}>
               {s.label}<span className="n">{fmt(count(k))}</span>
@@ -192,14 +177,14 @@ export default async function PapersPage({ searchParams }: { searchParams: Promi
             {papers.length === 0 ? (
               <div className="card empty">No papers match these filters.</div>
             ) : (
-              <div className="table-wrap">
+              <div className="table-wrap" id="list">
                 <table className="stack-mobile">
                   <thead>
                     <tr><th>Paper</th><th>Topic</th><th>Relevance</th><th>Feedback</th></tr>
                   </thead>
                   <tbody>
                     {papers.map((p) => (
-                      <tr key={`${p.id}-${p.topic_id}`}>
+                      <tr key={`${p.id}-${p.topic_id}`} data-search={`${p.title} ${p.one_line ?? ""} ${p.topic} ${p.reason ?? ""}`.toLowerCase()}>
                         <td style={{ minWidth: 260 }}>
                           <a href={p.url} target="_blank" rel="noreferrer" style={{ fontWeight: 600, color: "var(--text)" }}>{p.title}</a>
                           <div className="xsmall muted" style={{ marginTop: 4 }}>
@@ -213,12 +198,12 @@ export default async function PapersPage({ searchParams }: { searchParams: Promi
                           </PaperBadges>
                           {p.older && <div className="xsmall faint" style={{ marginTop: 4 }}>{olderLabel(p.year)}</div>}
                         </td>
-                        <td data-label="Topic" className="small">{p.topic}<div className="xsmall faint">via {p.found_via} · {istShort(p.first_seen_at)}</div></td>
+                        <td data-label="Topic" className={`small ${pc(p.topic_id)}`}><span className="row" style={{ gap: 6, flexWrap: "nowrap" }}><span className="dot" />{p.topic}</span><div className="xsmall faint">via {p.found_via} · {istShort(p.first_seen_at)}</div></td>
                         <td data-label="Relevance" className="small" style={{ minWidth: 160 }}>
                           <Relevance status={p.status} relevant={p.relevant} />
                           {p.reason && <div className="xsmall muted" style={{ marginTop: 4 }}>{p.reason}</div>}
                         </td>
-                        <td data-label="Feedback"><MiniMarks r={p} /></td>
+                        <td data-label="Feedback"><MarkButtons compact paperId={p.id} itemId={p.item_id} topicId={p.topic_id} marks={p.marks} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -239,12 +224,12 @@ export default async function PapersPage({ searchParams }: { searchParams: Promi
           (blogs.length === 0 ? (
             <div className="card empty">No blogs found in this window.</div>
           ) : (
-            <div className="table-wrap">
+            <div className="table-wrap" id="list">
               <table className="stack-mobile">
                 <thead><tr><th>Blog</th><th>Topic</th><th>Evidence</th><th>Paper behind it / reason</th></tr></thead>
                 <tbody>
                   {blogs.map((b) => (
-                    <tr key={b.id}>
+                    <tr key={b.id} data-search={`${b.title} ${b.topic ?? ""} ${b.reason ?? ""} ${b.paper_title ?? ""}`.toLowerCase()}>
                       <td style={{ minWidth: 220 }}>
                         <a href={b.url} target="_blank" rel="noreferrer" style={{ fontWeight: 600, color: "var(--text)" }}>{b.title}</a>
                         <div className="xsmall faint">{istShort(b.found_at)}</div>
@@ -262,6 +247,6 @@ export default async function PapersPage({ searchParams }: { searchParams: Promi
             </div>
           ))}
       </main>
-    </>
+    </Shell>
   );
 }

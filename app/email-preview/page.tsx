@@ -2,7 +2,7 @@
 import { q1 } from "@/lib/db";
 import { appUrl } from "@/lib/env";
 import { briefItems, renderEmail, type BriefRow } from "@/lib/brief";
-import { Nav } from "../nav";
+import { Shell } from "../shell";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Email preview · Research Pulse", robots: { index: false } };
@@ -17,10 +17,10 @@ export default async function EmailPreviewPage({ searchParams }: { searchParams:
     brief?.dashboard_json ? renderEmail(brief.id, brief.dashboard_json, await briefItems(brief.id, true), appUrl()).html : null;
 
   return (
-    <>
-      <Nav />
+    <Shell>
       <main className="container">
-        <div className="page-head">
+        <div className="page-head hero">
+          <div className="eyebrow">The Monday email</div>
           <h1>Email preview</h1>
           <p className="sub">
             How the Monday email looks{brief ? ` (brief #${brief.id})` : ""}. This page only renders it — nothing is sent. The buttons in the email
@@ -38,6 +38,6 @@ export default async function EmailPreviewPage({ searchParams }: { searchParams:
           <div className="card empty">No finished brief yet.</div>
         )}
       </main>
-    </>
+    </Shell>
   );
 }

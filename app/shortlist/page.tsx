@@ -1,8 +1,9 @@
 // Client shortlist: only papers marked "Share with a client". The system never sends these anywhere.
 import { q } from "@/lib/db";
 import { istShort } from "@/lib/time";
-import { Nav } from "../nav";
+import { Shell } from "../shell";
 import { MarkButtons, PaperBadges } from "../ui";
+import { pc } from "../palette";
 
 export const dynamic = "force-dynamic";
 
@@ -38,10 +39,10 @@ export default async function ShortlistPage() {
      ORDER BY m.created_at DESC`,
   );
   return (
-    <>
-      <Nav />
+    <Shell>
       <main className="container">
-        <div className="page-head">
+        <div className="page-head hero">
+          <div className="eyebrow">Ready to take to clients</div>
           <h1>Client shortlist</h1>
           <p className="sub">Only papers marked “Share with a client”. Nothing here is sent anywhere — you decide what reaches a client.</p>
         </div>
@@ -53,30 +54,28 @@ export default async function ShortlistPage() {
           </div>
         ) : (
           rows.map((r) => (
-            <article key={r.paper_id} className="paper">
-              <div className="spread xsmall faint" style={{ marginBottom: 6 }}>
-                <span>{r.topic ?? "—"}</span>
-                <span>Shared {istShort(r.marked_at)}</span>
+            <article key={r.paper_id} className={`paper ${pc(r.topic_id)}`}>
+              <div className="spread xsmall" style={{ marginBottom: 8 }}>
+                <span className="chip soft" style={{ padding: "3px 10px" }}><span className="dot" />{r.topic ?? "—"}</span>
+                <span className="badge ok">Shared {istShort(r.marked_at)}</span>
               </div>
               <a className="title" href={r.url} target="_blank" rel="noreferrer">{r.title}</a>
               <PaperBadges type={r.type} score={r.score} pub_status={r.pub_status} venue={r.venue} />
-              {(r.about || r.one_line) && (
-                <>
+              <div className="explain">
+                <div>
                   <div className="label">What it&apos;s about</div>
-                  <p className="small">{r.about ?? r.one_line}</p>
-                </>
-              )}
-              {(r.why || r.reason_line2) && (
-                <>
+                  <p>{r.about ?? r.one_line ?? "—"}</p>
+                </div>
+                <div className="why">
                   <div className="label">Why it may matter</div>
-                  <p className="small">{r.why ?? r.reason_line2}</p>
-                </>
-              )}
+                  <p>{r.why ?? r.reason_line2 ?? "—"}</p>
+                </div>
+              </div>
               <MarkButtons paperId={r.paper_id} itemId={null} topicId={r.topic_id} marks={r.marks} />
             </article>
           ))
         )}
       </main>
-    </>
+    </Shell>
   );
 }

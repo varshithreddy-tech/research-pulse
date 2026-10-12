@@ -3,8 +3,9 @@ import { q } from "@/lib/db";
 import { istShort, istWeekStart, weekLabel } from "@/lib/time";
 import { windowCounts } from "@/lib/brief";
 import { runCosts } from "@/lib/runGuard";
-import { Nav } from "../nav";
+import { Shell } from "../shell";
 import { AdminPanel, Notice, RunStatus, Tile, fmt, triggerLabel, usd } from "../ui";
+import { pc } from "../palette";
 
 export const dynamic = "force-dynamic";
 
@@ -88,14 +89,14 @@ export default async function CoveragePage({ searchParams }: { searchParams: Pro
   const maxChecked = Math.max(1, ...detail.topics.map((t) => t.checked));
 
   return (
-    <>
-      <Nav />
+    <Shell>
       <main className="container">
         <Notice msg={sp.msg} link={sp.link} />
-        <div className="page-head">
+        <div className="page-head hero">
           <div className="spread" style={{ alignItems: "flex-end" }}>
             <div>
-              <h1>Cost &amp; coverage</h1>
+              <div className="eyebrow">What was checked and what it cost</div>
+          <h1>Cost &amp; coverage</h1>
               <p className="sub">Week of {weekLabel(ws, we)} (IST) — what was checked, and what it cost.</p>
             </div>
             <form className="row small" aria-label="Choose week">
@@ -111,33 +112,33 @@ export default async function CoveragePage({ searchParams }: { searchParams: Pro
         </div>
 
         <div className="tiles">
-          <Tile num={usd(week?.gemini_cost ?? 0, 2)} label="Gemini cost this week" sub={`at ${process.env.GEMINI_PRICE_INPUT_PER_M ?? "?"} / ${process.env.GEMINI_PRICE_OUTPUT_PER_M ?? "?"} $ per 1M tokens`} />
-          <Tile num={week?.gemini_calls ?? 0} label="Gemini calls" sub={`${fmt(week?.gemini_failed)} failed (retried)`} />
-          <Tile num={`${fmt(month?.used)} / ${fmt(TAVILY_MONTHLY)}`} label="Tavily searches" sub="used this month (free plan)" />
-          <Tile num={detail.papers_checked} label="papers checked" sub={`${fmt(detail.older_discussed)} older papers also discussed`} />
+          <Tile tone={0} num={usd(week?.gemini_cost ?? 0, 2)} label="Gemini cost this week" sub={`at ${process.env.GEMINI_PRICE_INPUT_PER_M ?? "?"} / ${process.env.GEMINI_PRICE_OUTPUT_PER_M ?? "?"} $ per 1M tokens`} />
+          <Tile tone={3} num={week?.gemini_calls ?? 0} label="Gemini calls" sub={`${fmt(week?.gemini_failed)} failed (retried)`} />
+          <Tile tone={1} num={`${fmt(month?.used)} / ${fmt(TAVILY_MONTHLY)}`} label="Tavily searches" sub="used this month (free plan)" />
+          <Tile tone={2} num={detail.papers_checked} label="papers checked" sub={`${fmt(detail.older_discussed)} older papers also discussed`} />
         </div>
 
         <section className="section">
           <div className="section-head">
             <h2>Papers per topic</h2>
             <span className="xsmall muted">
-              <span className="swatch" style={{ background: "var(--accent-line)" }} />checked{"  "}
-              <span className="swatch" style={{ background: "var(--accent-text)", marginLeft: 10 }} />judged on-topic
+              light bar = checked · strong bar = judged on-topic · hover a bar for numbers
             </span>
           </div>
           <div className="card bars">
             {detail.topics.map((t) => {
               const b = blogsByTopic.find((x) => x.topic_id === t.topic_id);
               return (
-                <div key={t.topic_id} className="bar-row">
+                <div key={t.topic_id} className={`bar-row ${pc(t.topic_id)}`}>
                   <div className="bar-name">
-                    <a href={`/papers?week=${ws.toISOString()}&topic=${t.topic_id}`} style={{ color: "var(--text)" }}>{t.name}</a>
+                    <span className="dot" /><a href={`/papers?week=${ws.toISOString()}&topic=${t.topic_id}`}>{t.name}</a>
                     {t.checked === 0 && <span className="badge bad" style={{ marginLeft: 6 }}>0 papers</span>}
                   </div>
                   <div>
                     <div className="bar-track" title={`${t.checked} checked, ${t.relevant} on-topic`}>
                       <div className="bar-checked" style={{ width: `${(t.checked / maxChecked) * 100}%` }} />
                       <div className="bar-relevant" style={{ width: `${(t.relevant / maxChecked) * 100}%` }} />
+                      <span className="bar-tip">{t.checked ? Math.round((t.relevant / t.checked) * 100) : 0}% on-topic</span>
                     </div>
                     <div className="bar-legend">
                       {fmt(t.checked)} checked · {fmt(t.relevant)} on-topic
@@ -270,6 +271,6 @@ export default async function CoveragePage({ searchParams }: { searchParams: Pro
 
         <AdminPanel />
       </main>
-    </>
+    </Shell>
   );
 }
