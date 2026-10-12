@@ -1,0 +1,144 @@
+{
+  "_note": "Seed only. Loaded into Neon once by `npm run db:seed`. After that Kavita edits topics on the dashboard (Topics page). arXiv is fetched by category only — search_words are used for Tavily and as a hint to Gemini, never as an arXiv filter.",
+  "topics": [
+    {
+      "name": "AI agents",
+      "focus": "Systems where a language model plans, uses tools, takes actions over several steps or works with other agents to complete a task — including how well they work, how they fail, and how companies deploy them.",
+      "arxiv_categories": [
+        "cs.AI",
+        "cs.MA",
+        "cs.CL"
+      ],
+      "search_words": [
+        "LLM agents",
+        "agentic",
+        "tool use",
+        "multi-agent",
+        "planning",
+        "computer-use agent"
+      ],
+      "active": true
+    },
+    {
+      "name": "Retrieval-augmented generation (RAG)",
+      "focus": "Giving language models access to outside documents or databases at answer time — retrieval, ranking, chunking, grounding, citing sources, and how well these systems answer from company knowledge.",
+      "arxiv_categories": [
+        "cs.CL",
+        "cs.IR"
+      ],
+      "search_words": [
+        "retrieval-augmented generation",
+        "RAG",
+        "dense retrieval",
+        "grounding",
+        "knowledge-intensive",
+        "GraphRAG"
+      ],
+      "active": true
+    },
+    {
+      "name": "LLMs for code",
+      "focus": "Language models that write, fix, review, test or explain software — coding assistants, code agents, program repair, and how they are measured on real software work.",
+      "arxiv_categories": [
+        "cs.SE",
+        "cs.CL",
+        "cs.PL"
+      ],
+      "search_words": [
+        "code generation",
+        "code LLM",
+        "program repair",
+        "software engineering agent",
+        "SWE-bench"
+      ],
+      "active": true
+    },
+    {
+      "name": "Computer vision for industrial applications",
+      "focus": "Vision for manufacturing and industrial settings: defect detection, visual inspection, industrial anomaly detection, quality control on production lines. Not autonomous driving, general robotics or remote sensing.",
+      "arxiv_categories": [
+        "cs.CV",
+        "eess.IV",
+        "cs.RO"
+      ],
+      "search_words": [
+        "industrial inspection",
+        "defect detection",
+        "anomaly detection",
+        "manufacturing",
+        "visual quality control"
+      ],
+      "active": true
+    },
+    {
+      "name": "LLM evaluation and benchmarks",
+      "focus": "How language models are tested — new benchmarks and datasets, problems with existing benchmarks (contamination, saturation), LLM-as-judge, and evaluation methods companies can trust.",
+      "arxiv_categories": [
+        "cs.CL",
+        "cs.AI",
+        "cs.LG"
+      ],
+      "search_words": [
+        "benchmark",
+        "LLM evaluation",
+        "LLM-as-a-judge",
+        "contamination",
+        "leaderboard"
+      ],
+      "active": true
+    },
+    {
+      "name": "Small and efficient models",
+      "focus": "Making models cheaper and faster to run — small language models, distillation, quantization, pruning, efficient inference and serving, and on-device models.",
+      "arxiv_categories": [
+        "cs.LG",
+        "cs.CL"
+      ],
+      "search_words": [
+        "small language model",
+        "distillation",
+        "quantization",
+        "efficient inference",
+        "on-device"
+      ],
+      "active": true
+    },
+    {
+      "name": "Multimodal models",
+      "focus": "Models that work across text, images, video, audio or documents together — vision-language models, document understanding, and multimodal reasoning.",
+      "arxiv_categories": [
+        "cs.CV",
+        "cs.CL",
+        "cs.MM"
+      ],
+      "search_words": [
+        "vision-language model",
+        "multimodal LLM",
+        "VLM",
+        "document understanding",
+        "video understanding"
+      ],
+      "active": true
+    },
+    {
+      "name": "AI safety and reliability in deployment",
+      "focus": "Whether AI systems behave safely and reliably once in use — hallucination, jailbreaks and prompt injection, robustness, monitoring, guardrails, red-teaming, and alignment methods that matter for real deployments.",
+      "arxiv_categories": [
+        "cs.CR",
+        "cs.AI",
+        "cs.CL",
+        "cs.LG",
+        "cs.SE"
+      ],
+      "search_words": [
+        "hallucination",
+        "jailbreak",
+        "prompt injection",
+        "red teaming",
+        "guardrails",
+        "AI safety"
+      ],
+      "active": true
+    }
+  ]
+}
