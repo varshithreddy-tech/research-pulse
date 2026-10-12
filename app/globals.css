@@ -35,11 +35,13 @@
   --p5-bg: #fbe7ee; --p5-fg: #a84468; --p5-dot: #f0a3bd;  /* rose */
   --p6-bg: #e9f2e3; --p6-fg: #4f7236; --p6-dot: #a9cf8d;  /* sage */
   --p7-bg: #e6e8fb; --p7-fg: #4651b5; --p7-dot: #9ea6f0;  /* periwinkle */
+  --on-accent: #ffffff;
   color-scheme: light;
 }
 
+/* Dark: follows the device unless a choice is saved (data-theme on <html>, set before first paint). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #15131d;
     --surface: #1d1a28;
     --surface-2: #242033;
@@ -66,7 +68,37 @@
     --p6-bg: rgba(169, 207, 141, 0.13); --p6-fg: #c6e2b2; --p6-dot: #a9cf8d;
     --p7-bg: rgba(158, 166, 240, 0.13); --p7-fg: #c3c8fb; --p7-dot: #9ea6f0;
     color-scheme: dark;
+    --on-accent: #15131d;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #15131d;
+  --surface: #1d1a28;
+  --surface-2: #242033;
+  --sidebar: #191623;
+  --text: #ece8f6;
+  --muted: #aaa3c2;
+  --faint: #7e7896;
+  --line: #2d2940;
+  --line-strong: #3a3552;
+  --accent: #b7a9ff;
+  --accent-soft: rgba(183, 169, 255, 0.12);
+  --accent-line: rgba(183, 169, 255, 0.32);
+  --ok: #8fdcb2; --ok-soft: rgba(143, 220, 178, 0.12);
+  --warn: #f3c983; --warn-soft: rgba(243, 201, 131, 0.12);
+  --bad: #f3a3bf; --bad-soft: rgba(243, 163, 191, 0.12);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-hover: 0 4px 18px rgba(0, 0, 0, 0.45);
+  --p0-bg: rgba(169, 156, 240, 0.14); --p0-fg: #c9c0ff; --p0-dot: #a99cf0;
+  --p1-bg: rgba(127, 207, 164, 0.13); --p1-fg: #a3e3c0; --p1-dot: #7fcfa4;
+  --p2-bg: rgba(244, 171, 132, 0.13); --p2-fg: #f7c3a6; --p2-dot: #f4ab84;
+  --p3-bg: rgba(139, 187, 232, 0.13); --p3-fg: #b4d4f3; --p3-dot: #8bbbe8;
+  --p4-bg: rgba(236, 209, 107, 0.12); --p4-fg: #efdc96; --p4-dot: #ecd16b;
+  --p5-bg: rgba(240, 163, 189, 0.13); --p5-fg: #f6c2d4; --p5-dot: #f0a3bd;
+  --p6-bg: rgba(169, 207, 141, 0.13); --p6-fg: #c6e2b2; --p6-dot: #a9cf8d;
+  --p7-bg: rgba(158, 166, 240, 0.13); --p7-fg: #c3c8fb; --p7-dot: #9ea6f0;
+  color-scheme: dark;
+  --on-accent: #15131d;
 }
 
 /* Pastel helpers: .pc-N sets --pc-bg / --pc-fg / --pc-dot for a component */
@@ -265,8 +297,7 @@ button:disabled { opacity: 0.6; cursor: default; }
 button.on { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); font-weight: 650; }
 button.on.share { background: var(--p1-bg); border-color: transparent; color: var(--p1-fg); }
 button.on.not_useful { background: var(--p5-bg); border-color: transparent; color: var(--p5-fg); }
-button.primary, .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-@media (prefers-color-scheme: dark) { button.primary, .btn.primary { color: #15131d; } }
+button.primary, .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 button.primary:hover, .btn.primary:hover { filter: brightness(1.07); background: var(--accent); }
 button.ghost { border-color: transparent; background: transparent; }
 form.inline { display: inline; }
@@ -361,6 +392,10 @@ tr:target td { background: var(--accent-soft); }
   table.stack-mobile td[data-label]::before { content: attr(data-label) " "; color: var(--faint); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-right: 6px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+
+/* Light / dark toggle */
+.theme-toggle { font-size: 12.5px; padding: 6px 12px; margin-top: 10px; }
+.mobile-theme { margin: 0 0 0 auto; }
 
 /* ---------- Motion (only when app/motion.tsx is running and motion is allowed) ---------- */
 /* Reveal on scroll: fade + rise, staggered via --d. The selector list must match app/motion.tsx.

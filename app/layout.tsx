@@ -23,6 +23,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} ${serif.variable}`} suppressHydrationWarning>
       <head>
+        {/* Light / dark: a choice saved on this device wins over the device setting (no flash). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var t=localStorage.getItem('rp-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}})()",
+          }}
+        />
         {/* Animations: decided before first paint (no flash). Removed again after 2.5 s if the motion
             component never starts, so content can never stay hidden. Off for reduced motion. The
             landing intro plays once per tab: on a repeat visit "intro-seen" shows the page at once. */}

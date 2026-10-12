@@ -21,6 +21,28 @@ const PAGES = [
   { href: "/how", label: "How it works", icon: Icon.how },
 ];
 
+/** Light / dark. Follows the device until chosen; the choice is remembered on this device. */
+function ThemeToggle({ className = "" }: { className?: string }) {
+  const [dark, setDark] = useState<boolean | null>(null);
+  useEffect(() => {
+    const t = document.documentElement.dataset.theme;
+    setDark(t ? t === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches);
+  }, []);
+  const flip = () => {
+    const next = !dark;
+    document.documentElement.dataset.theme = next ? "dark" : "light";
+    try {
+      localStorage.setItem("rp-theme", next ? "dark" : "light");
+    } catch {}
+    setDark(next);
+  };
+  return (
+    <button type="button" className={`theme-toggle ${className}`} onClick={flip} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}>
+      <span aria-hidden="true">{dark ? "☀" : "☾"}</span> {dark === null ? "Theme" : dark ? "Light" : "Dark"}
+    </button>
+  );
+}
+
 /**
  * Sliding highlight behind the active link of one sidebar group. It remembers where it was (this tab
  * only), so after a page load it glides from the previous page's link to the new one. Until it is
@@ -138,6 +160,7 @@ export function Frame(props: { topics: SideTopic[]; week: string | null; shortli
         <div className="side-foot">
           {props.week ? <>Brief for <b style={{ color: "var(--text)" }}>{props.week}</b></> : "No brief yet"}
           <div className="faint" style={{ marginTop: 2 }}>New brief every Monday 6:30 AM IST</div>
+          <ThemeToggle />
         </div>
       </aside>
       <div className="backdrop" onClick={() => setOpen(false)} />
@@ -150,6 +173,7 @@ export function Frame(props: { topics: SideTopic[]; week: string | null; shortli
             <span className="logo-mark" style={{ width: 28, height: 28, borderRadius: 8 }}><Icon.pulse /></span>
             <span className="logo-name">Research Pulse</span>
           </a>
+          <ThemeToggle className="mobile-theme" />
         </div>
         {props.children}
       </div>
