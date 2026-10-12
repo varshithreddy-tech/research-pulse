@@ -17,8 +17,10 @@ Kavita must be able to read it in **under 10 minutes**. Short sentences, plain E
 2. **Up to 3 papers shown in full**, highest rank first. **Each paper is shown in full only once per brief** — in the first topic (in topic order) where it is in the top 3. In any later topic it gets one line, **"Also relevant here: <title> (see <topic>)"**, and its slot goes to that topic's next-best paper not yet shown. Each paper card, in this order:
    - **Title** (linked). Older papers also carry "Older paper (YEAR) — discussed this week".
    - **Facts line:** type · score · Preprint / Peer-reviewed · citations · upvotes · code shared · "Discussed in" if any — "not available" when a source failed.
-   - **What it's about:** 2–3 short sentences in plain English for a smart reader *outside* that research area — the problem, what they did, what they found. Explain any technical term or acronym in a few words, or avoid it. No hype.
-   - **Why it may matter:** ONE sentence from a company's point of view.
+   - **What it's about:** 2–3 short sentences — the problem, what they did, what they found.
+   - **Why it may matter:** ONE sentence from a company's point of view — what decision, cost or risk it touches.
+
+   **Writing rule for both:** plain English for a busy business consultant, not a researcher. Sentences of about 20 words at most. No jargon — if a technical term is needed, explain it in brackets the first time, e.g. "benchmark (a standard test)". No hype words: never "critical", "groundbreaking", "breakthrough", "validated" (or "crucial", "revolutionary", "unprecedented", "state-of-the-art").
    - **Feedback:** Read fully · Share with a client · Not useful (one-click links in the email, buttons on the dashboard).
 3. **"+ N more papers checked"** — link to every other paper for this topic on the dashboard.
 
@@ -34,6 +36,6 @@ Plus a **"You missed this?"** link to the dashboard form.
 
 You write only:
 - the **"What's changing"** sentence per topic (max 25 words), and
-- **"What it's about"** for the papers shown in full (and only those).
+- **"What it's about"** and a plain **"Why it may matter"** for the papers shown in full (and only those), following the writing rule above.
 
 Code fills in titles, links, facts and counts exactly as stored, so you never restate numbers. Never add a result that is not in the paper's own summary. Never use "validated", "breakthrough", "groundbreaking" or "state-of-the-art". Never mention a paper that was not given to you.

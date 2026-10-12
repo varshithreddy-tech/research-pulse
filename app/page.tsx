@@ -1,6 +1,6 @@
 // This week's brief: top 3 per topic with mark buttons, "+ N more" links, "You missed this" form.
 import { q, q1, activeTopics } from "@/lib/db";
-import { aboutText, briefItems, cardFacts, olderLabel, toplineText, FOOTER, type BriefRow } from "@/lib/brief";
+import { aboutText, whyText, briefItems, cardFacts, olderLabel, toplineText, FOOTER, type BriefRow } from "@/lib/brief";
 import { istShort } from "@/lib/time";
 import { addMissed } from "./actions";
 import { Nav } from "./nav";
@@ -104,7 +104,7 @@ export default async function BriefPage({ searchParams }: { searchParams: Promis
                         <b>What it&apos;s about:</b> {aboutText(i)}
                       </p>
                       <p style={{ margin: "2px 0" }}>
-                        <b>Why it may matter:</b> {i.reason_line2}
+                        <b>Why it may matter:</b> {whyText(i)}
                       </p>
                       <MarkButtons paperId={i.paper_id} itemId={i.id} topicId={i.topic_id} marks={i.marks} />
                     </div>

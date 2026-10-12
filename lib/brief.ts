@@ -4,6 +4,7 @@ import { q, q1 } from "./db";
 import { appUrl } from "./env";
 import { weekLabel } from "./time";
 import { MARK_KINDS, MARK_LABEL, makeMarkToken } from "./markToken";
+import { dehype } from "./plain";
 
 export const TYPE_LABEL: Record<string, string> = {
   new_test: "New test",
@@ -105,6 +106,7 @@ export interface ItemView {
   in_brief: boolean;
   also_shown_in: number | null; // shown in full under this topic; here only "Also relevant here"
   about: string | null; // "What it's about" (papers shown in full only)
+  why: string | null; // plain "Why it may matter" (papers shown in full only)
   older: boolean;
   published_year: number | null;
   citations: number | null;
@@ -122,7 +124,7 @@ export interface ItemView {
 export async function briefItems(briefId: number, onlyInBrief: boolean): Promise<ItemView[]> {
   return q<ItemView>(
     `SELECT bi.id, bi.paper_id, bi.topic_id, p.title, p.url, p.one_line, p.pub_status, COALESCE(p.venue, bi.s2_venue, p.journal_ref) AS venue,
-       bi.relevance, bi.importance_status, bi.type, bi.score, bi.reason_line1, bi.reason_line2, bi.rank, bi.in_brief, bi.also_shown_in, bi.about, bi.older, bi.published_year,
+       bi.relevance, bi.importance_status, bi.type, bi.score, bi.reason_line1, bi.reason_line2, bi.rank, bi.in_brief, bi.also_shown_in, bi.about, bi.why, bi.older, bi.published_year,
        bi.citations, bi.influential_citations, bi.s2_status, bi.author_info, bi.hf_upvotes, bi.hf_status,
        COALESCE(bi.code_url, p.code_url) AS code_url, bi.blog_count,
        COALESCE((SELECT jsonb_agg(jsonb_build_object('title', b.title, 'url', b.url) ORDER BY b.id)
@@ -163,7 +165,12 @@ export function cardFacts(i: ItemView): string[] {
 
 /** "What it's about" — falls back to the one-line summary if the writing step had no answer. */
 export function aboutText(i: ItemView): string {
-  return i.about ?? i.one_line ?? "";
+  return dehype(i.about ?? i.one_line ?? "");
+}
+
+/** "Why it may matter" — the plain rewrite, else Question 2's line 2 with hype words removed. */
+export function whyText(i: ItemView): string {
+  return dehype(i.why ?? i.reason_line2 ?? "");
 }
 
 export interface BriefRow {
@@ -288,7 +295,7 @@ export function renderEmail(briefId: number, d: DashboardBrief, items: ItemView[
       if (i.older) h.push(`<div style="font-size:12px;color:#b45309">${esc(olderLabel(i.published_year))}</div>`);
       h.push(`<div style="font-size:12px;color:#6b7280;margin-top:2px">${cardFacts(i).map(esc).join(" · ")}${i.code_url ? ` · <a href="${esc(i.code_url)}" style="color:#6b7280">code</a>` : ""}</div>`);
       h.push(`<p style="font-size:14px;margin:6px 0 2px"><b>What it's about:</b> ${esc(aboutText(i))}</p>`);
-      h.push(`<p style="font-size:14px;margin:2px 0"><b>Why it may matter:</b> ${esc(i.reason_line2)}</p>`);
+      h.push(`<p style="font-size:14px;margin:2px 0"><b>Why it may matter:</b> ${esc(whyText(i))}</p>`);
       h.push(`<div>${MARK_KINDS.map((k) => `<a href="${markLink(base, i.id, k)}" style="${btn}">${esc(MARK_LABEL[k])}</a>`).join("")}</div>`);
       h.push(`</div>`);
       t.push(
@@ -298,7 +305,7 @@ export function renderEmail(briefId: number, d: DashboardBrief, items: ItemView[
         `  ${i.url}`,
         `  ${cardFacts(i).join(" · ")}`,
         `  What it's about: ${aboutText(i)}`,
-        `  Why it may matter: ${i.reason_line2}`,
+        `  Why it may matter: ${whyText(i)}`,
         ...MARK_KINDS.map((k) => `  ${MARK_LABEL[k]}: ${markLink(base, i.id, k)}`),
       );
     }

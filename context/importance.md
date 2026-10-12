@@ -23,7 +23,7 @@ If two types fit, pick the one that best explains why a consultant would care.
 ## Reason — exactly 2 lines
 
 - **Line 1 — what it claims.** One plain sentence. Use the paper's own claim; say "claims" or "reports", not "proves".
-- **Line 2 — why it might matter to a company's AI strategy.** One plain sentence: what decision, bet or risk it could affect.
+- **Line 2 — why it might matter to a company's AI strategy.** One plain sentence (about 20 words at most): what decision, bet or risk it could affect. Everyday words; no intensifiers ("critical", "crucial", "deeply").
 
 ## Rules
 
