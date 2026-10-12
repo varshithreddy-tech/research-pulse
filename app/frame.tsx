@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Icon } from "./icons";
 import { pc } from "./palette";
+import { Motion } from "./motion";
 
 export interface SideTopic {
   id: number;
@@ -88,6 +89,7 @@ export function Frame(props: { topics: SideTopic[]; week: string | null; shortli
       </aside>
       <div className="backdrop" onClick={() => setOpen(false)} />
 
+      <Motion />
       <div className="main">
         <div className="mobile-bar">
           <button className="ghost" onClick={() => setOpen(true)} aria-label="Open menu"><Icon.menu /></button>

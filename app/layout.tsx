@@ -21,7 +21,17 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${serif.variable}`}>
+    <html lang="en" className={`${inter.variable} ${serif.variable}`} suppressHydrationWarning>
+      <head>
+        {/* Animations: decided before first paint (no flash). Removed again after 2.5 s if the motion
+            component never starts, so content can never stay hidden. Off for reduced motion. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;var d=document.documentElement;d.classList.add('motion');setTimeout(function(){if(!window.__rpMotion)d.classList.remove('motion')},2500)}catch(e){}})()",
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

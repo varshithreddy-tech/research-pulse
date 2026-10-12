@@ -47,6 +47,7 @@ export function TopicExplorer(props: {
         {idx >= 0 && <span className="xsmall faint">Topic {idx + 1} of {props.topics.length} · pick another from the left</span>}
       </div>
 
+      <div key={view} className="view-enter">
       {view === "overview" && props.overview}
       {view === "all" && props.topics.map((t) => <div key={t.id} className="topic-block">{props.panels[String(t.id)]}</div>)}
       {idx >= 0 && (
@@ -58,6 +59,7 @@ export function TopicExplorer(props: {
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }

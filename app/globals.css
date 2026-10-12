@@ -338,3 +338,59 @@ tr:target td { background: var(--accent-soft); }
   table.stack-mobile td[data-label]::before { content: attr(data-label) " "; color: var(--faint); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-right: 6px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+
+/* ---------- Motion (only when app/motion.tsx is running and motion is allowed) ---------- */
+/* Reveal on scroll: fade + rise, staggered via --d. The selector list must match app/motion.tsx.
+   "motion" is set before first paint by the inline script in layout.tsx and removed after 2.5 s if
+   the motion component never starts, so content can never stay hidden. */
+.motion :is(.hero, .tile, .topic-card, .topic-band, .paper, .card, .bar-row, .step, .tool, .also, .more-link, .view-bar, .table-wrap, .chips > .chip, .quiet, tbody tr:nth-child(-n+40)):not(.rp-in) { opacity: 0; transform: translateY(16px); }
+.motion .rp-in { opacity: 1; transform: none; transition: opacity 0.55s ease var(--d, 0ms), transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) var(--d, 0ms), box-shadow 0.2s, border-color 0.2s; }
+.motion .topic-card.rp-in:hover { transform: translateY(-3px); transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; }
+.motion .paper.rp-in:hover { transform: translateY(-1px); transition: transform 0.2s, box-shadow 0.2s; }
+.motion .hero:not(.rp-in) { transform: translateY(10px) scale(0.99); filter: blur(4px); }
+.motion .hero.rp-in { filter: none; transition: opacity 0.6s ease, transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), filter 0.7s ease; }
+.motion tbody tr:nth-child(-n+40):not(.rp-in) { transform: translateY(8px); }
+
+/* Page titles blur in */
+.motion h1 { animation: blurIn 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes blurIn { from { opacity: 0; filter: blur(8px); transform: translateY(6px); } to { opacity: 1; filter: none; transform: none; } }
+
+/* Bars grow from the left when their row appears */
+.bar-checked, .bar-relevant { transform-origin: left center; }
+.motion .bar-row:not(.rp-in) .bar-checked, .motion .bar-row:not(.rp-in) .bar-relevant { transform: scaleX(0); }
+.motion .bar-row.rp-in .bar-checked { transform: scaleX(1); transition: transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--d, 0ms) + 120ms); }
+.motion .bar-row.rp-in .bar-relevant { transform: scaleX(1); transition: transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--d, 0ms) + 380ms); }
+
+/* Switching topics: the new view slides in */
+.motion .view-enter { animation: viewIn 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes viewIn { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+
+/* Click: ripple + press */
+button, .btn, .chip, .side-link, .topic-card, .more-link { position: relative; overflow: hidden; }
+.ripple { position: absolute; border-radius: 50%; pointer-events: none; background: var(--accent); opacity: 0.18; transform: scale(0); animation: ripple 0.6s ease-out forwards; }
+@keyframes ripple { to { transform: scale(1); opacity: 0; } }
+.motion button:active:not(:disabled), .motion .btn:active, .motion .chip:active, .motion .side-link:active, .motion .more-link:active { transform: scale(0.97); }
+.motion .topic-card:active { transform: translateY(0) scale(0.99); }
+button, .btn, .chip, .side-link, .more-link { transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.12s, box-shadow 0.15s; }
+
+/* ✓ pops in; toast slides up */
+.motion button.on { animation: pop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1); }
+@keyframes pop { 0% { transform: scale(0.9); } 60% { transform: scale(1.06); } 100% { transform: scale(1); } }
+.motion .toast { animation: toastIn 0.3s ease both, fade 2.4s 0.3s forwards; }
+@keyframes toastIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Gentle hover lift for tiles */
+.motion .tile.rp-in:hover { transform: translateY(-3px); transition: transform 0.2s; }
+
+/* Hero background drifts slowly */
+.motion .hero { background-size: 140% 140%, 140% 140%, auto; animation: drift 18s ease-in-out infinite alternate; }
+@keyframes drift { from { background-position: 0% 0%, 100% 0%, 0 0; } to { background-position: 20% 30%, 80% 20%, 0 0; } }
+
+/* Scroll progress bar + back to top */
+.scroll-progress { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 60; transform-origin: left center; transform: scaleX(0); background: linear-gradient(90deg, var(--p0-dot), var(--p3-dot), var(--p1-dot), var(--p2-dot)); pointer-events: none; }
+.to-top { position: fixed; right: 22px; bottom: 22px; z-index: 50; border-radius: 999px; padding: 10px 16px; box-shadow: var(--shadow-hover); background: var(--surface); opacity: 0; transform: translateY(16px); pointer-events: none; transition: opacity 0.25s, transform 0.25s; }
+.to-top.show { opacity: 1; transform: none; pointer-events: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-progress, .to-top { display: none; }
+}
