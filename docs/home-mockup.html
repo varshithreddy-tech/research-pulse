@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Research Pulse — Monday Brief (redesign mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f7f5f0; --surface:#ffffff; --surface-2:#f1eee7; --line:#e4dfd4;
+  --ink:#1c1b19; --ink-2:#55524b; --ink-3:#8a867c;
+  --accent:#2f4bd6; --accent-soft:#e8ecfd;
+  --t1:#b4361f; --t1-soft:#fbe9e4;   /* Bring to a client */
+  --t2:#2f4bd6; --t2-soft:#e8ecfd;   /* Read this week */
+  --t3:#6b6a63; --t3-soft:#efede8;   /* Just so you know */
+  --bar:#2f4bd6;
+  --serif:"Fraunces",Georgia,serif; --sans:"Inter",-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#141413; --surface:#1d1c1a; --surface-2:#252422; --line:#33312d;
+    --ink:#f1efe9; --ink-2:#b9b5ab; --ink-3:#85817a;
+    --accent:#8fa2ff; --accent-soft:#232a4a;
+    --t1:#ff9a85; --t1-soft:#3a2420; --t2:#8fa2ff; --t2-soft:#232a4a; --t3:#aaa79f; --t3-soft:#2a2926;
+    --bar:#8fa2ff;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#141413; --surface:#1d1c1a; --surface-2:#252422; --line:#33312d;
+  --ink:#f1efe9; --ink-2:#b9b5ab; --ink-3:#85817a;
+  --accent:#8fa2ff; --accent-soft:#232a4a;
+  --t1:#ff9a85; --t1-soft:#3a2420; --t2:#8fa2ff; --t2-soft:#232a4a; --t3:#aaa79f; --t3-soft:#2a2926;
+  --bar:#8fa2ff;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+button{font:inherit;color:inherit}
+
+/* ---------- shell ---------- */
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr) 300px;max-width:1440px;margin:0 auto;min-height:100vh}
+.side{position:sticky;top:0;height:100vh;overflow:auto;padding:28px 18px;border-right:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;margin-bottom:28px}
+.brand-mark{width:26px;height:26px;border-radius:7px;background:var(--ink);color:var(--bg);display:grid;place-items:center;font-family:var(--serif);font-size:15px}
+.nav-label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin:22px 8px 6px}
+.nav a{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-radius:7px;text-decoration:none;color:var(--ink-2);font-size:14px}
+.nav a:hover{background:var(--surface-2);color:var(--ink)}
+.nav a.on{background:var(--surface);color:var(--ink);font-weight:500;box-shadow:0 0 0 1px var(--line)}
+.nav .n{font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.side-foot{margin-top:28px;padding:12px;border-radius:10px;background:var(--surface-2);font-size:12px;color:var(--ink-2)}
+
+main{padding:40px 48px 80px;min-width:0}
+.rail{padding:40px 24px;border-left:1px solid var(--line)}
+.rail-inner{position:sticky;top:40px}
+
+/* ---------- masthead ---------- */
+.kicker{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:600}
+h1{font-family:var(--serif);font-weight:500;font-size:44px;line-height:1.08;letter-spacing:-.01em;margin:8px 0 10px}
+.meta{display:flex;flex-wrap:wrap;gap:6px 18px;color:var(--ink-2);font-size:14px}
+.meta b{color:var(--ink);font-weight:600}
+.topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.tools{display:flex;gap:8px;flex-shrink:0}
+.btn{border:1px solid var(--line);background:var(--surface);padding:7px 12px;border-radius:8px;font-size:13px;cursor:pointer}
+.btn:hover{border-color:var(--ink-3)}
+
+.tldr{margin:28px 0 8px;padding:22px 26px;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.tldr h2{font-family:var(--serif);font-weight:500;font-size:19px;margin:0 0 10px}
+.tldr ol{margin:0;padding-left:20px}
+.tldr li{margin:6px 0;color:var(--ink)}
+.tldr li span{color:var(--ink-3)}
+
+/* ---------- section headers ---------- */
+.sec-head{display:flex;justify-content:space-between;align-items:baseline;margin:44px 0 14px;gap:12px}
+.sec-head h2{font-family:var(--serif);font-weight:500;font-size:26px;margin:0}
+.sec-head p{margin:0;color:var(--ink-3);font-size:13px}
+
+/* ---------- tier pills ---------- */
+.tier{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;letter-spacing:.02em;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.tier::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.tier.t1{color:var(--t1);background:var(--t1-soft)}
+.tier.t2{color:var(--t2);background:var(--t2-soft)}
+.tier.t3{color:var(--t3);background:var(--t3-soft)}
+
+/* ---------- top signals ---------- */
+.signals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.sig{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:12px}
+.sig .topic{font-size:12px;color:var(--ink-3)}
+.sig h3{font-family:var(--serif);font-weight:500;font-size:18px;line-height:1.3;margin:0}
+.sig h3 a{text-decoration:none}
+.sig h3 a:hover{text-decoration:underline;text-underline-offset:3px}
+.say{border-left:3px solid var(--t1);padding:2px 0 2px 12px;font-size:14px;color:var(--ink)}
+.say small{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:2px}
+.lab{font-size:12.5px;color:var(--ink-3)}
+.sig .foot{margin-top:auto;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* evidence maturity */
+.maturity{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-3)}
+.steps{display:flex;gap:3px}
+.steps i{width:16px;height:5px;border-radius:3px;background:var(--line)}
+.steps i.on{background:var(--ink-2)}
+
+/* ---------- domain sections ---------- */
+.domain{margin-top:36px;padding-top:28px;border-top:1px solid var(--line)}
+.domain-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.domain h3{font-family:var(--serif);font-weight:500;font-size:22px;margin:0}
+.domain .counts{font-size:12.5px;color:var(--ink-3);white-space:nowrap;margin-top:6px}
+.changing{margin:10px 0 14px;color:var(--ink-2);max-width:72ch}
+.changing b{color:var(--ink);font-weight:600}
+
+.paper{background:var(--surface);border:1px solid var(--line);border-radius:12px;margin:10px 0;overflow:hidden}
+.paper summary{list-style:none;cursor:pointer;padding:14px 18px;display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:14px;align-items:start}
+.paper summary::-webkit-details-marker{display:none}
+.paper summary:hover{background:var(--surface-2)}
+.ptitle{font-weight:600;font-size:15px;line-height:1.35}
+.pwhy{color:var(--ink-2);font-size:14px;margin-top:3px}
+.pmeta{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--ink-3);margin-top:6px}
+.chev{color:var(--ink-3);transition:transform .15s;margin-top:2px}
+.paper[open] .chev{transform:rotate(90deg)}
+.pbody{padding:0 18px 16px 182px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.pbody h4{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin:0 0 4px;font-weight:600}
+.pbody p{margin:0;font-size:14px;color:var(--ink-2)}
+.actions{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-top:4px}
+.act{border:1px solid var(--line);background:transparent;padding:6px 11px;border-radius:8px;font-size:13px;cursor:pointer}
+.act:hover{border-color:var(--ink-3)}
+.act[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.act.no[aria-pressed="true"]{background:var(--surface-2);color:var(--ink-3);border-color:var(--line);text-decoration:line-through}
+.actions a{font-size:13px;color:var(--accent);margin-left:auto;text-decoration:none}
+.more{display:inline-block;margin-top:6px;font-size:13.5px;color:var(--accent);text-decoration:none}
+.more:hover{text-decoration:underline}
+
+/* ---------- right rail ---------- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+.card h3{font-size:13px;font-weight:600;margin:0 0 10px;display:flex;justify-content:space-between}
+.card h3 span{color:var(--ink-3);font-weight:400}
+.short{font-size:13.5px;padding:8px 0;border-top:1px solid var(--line)}
+.short:first-of-type{border-top:0;padding-top:0}
+.short small{display:block;color:var(--ink-3);font-size:12px}
+.mbar{display:grid;grid-template-columns:1fr 34px;gap:2px 8px;align-items:center;font-size:12.5px;margin:7px 0;cursor:default}
+.mbar .lbl{grid-column:1/-1;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mbar .track{height:6px;border-radius:3px;background:var(--surface-2)}
+.mbar .fill{height:100%;border-radius:0 3px 3px 0;background:var(--bar)}
+.mbar .v{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink)}
+.mbar:hover .lbl{color:var(--ink)}
+.note{font-size:12px;color:var(--ink-3);margin:10px 0 0}
+.funnel{font-size:13px;color:var(--ink-2);line-height:1.8}
+.funnel b{color:var(--ink);font-variant-numeric:tabular-nums}
+#tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--bg);font-size:12px;padding:6px 9px;border-radius:6px;opacity:0;transition:opacity .1s;z-index:10;max-width:240px}
+
+.footer{margin-top:48px;padding-top:20px;border-top:1px solid var(--line);color:var(--ink-3);font-size:13px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.mock{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);font-size:12px;padding:6px 12px;border-radius:999px;opacity:.85}
+
+/* ---------- responsive ---------- */
+.mobile-top{display:none}
+@media (max-width:1240px){
+  .shell{grid-template-columns:220px minmax(0,1fr)}
+  .rail{grid-column:2;border-left:0;padding:0 48px 60px}
+  .rail-inner{position:static;display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .card{margin:0}
+}
+@media (max-width:1000px){
+  .signals{grid-template-columns:1fr}
+  .paper summary{grid-template-columns:1fr auto}
+  .paper summary .tier{grid-column:1/-1;justify-self:start}
+  .pbody{padding:0 18px 16px;grid-template-columns:1fr}
+}
+@media (max-width:860px){
+  .shell{display:block}
+  .side{display:none}
+  .mobile-top{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
+  main{padding:24px 16px 60px}
+  .rail{padding:0 16px 60px}
+  .rail-inner{grid-template-columns:1fr}
+  h1{font-size:32px}
+  .topbar{flex-direction:column}
+  .domain-head{flex-direction:column;gap:2px}
+}
+</style>
+</head>
+<body>
+<div class="mobile-top"><div class="brand" style="margin:0"><div class="brand-mark">R</div>Research Pulse</div><button class="btn" onclick="toggleTheme()">Theme</button></div>
+
+<div class="shell">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="side">
+    <div class="brand"><div class="brand-mark">R</div>Research Pulse</div>
+    <nav class="nav">
+      <a class="on" href="#">This week</a>
+      <a href="#">Client shortlist <span class="n">2</span></a>
+      <a href="#">All papers <span class="n">3,600</span></a>
+      <a href="#">Archive</a>
+    </nav>
+    <div class="nav-label">Domains</div>
+    <nav class="nav" id="domnav"></nav>
+    <div class="nav-label">Settings</div>
+    <nav class="nav">
+      <a href="#">Edit domains</a>
+      <a href="#">Cost &amp; coverage</a>
+      <a href="#">How it works</a>
+      <a href="#">Admin</a>
+    </nav>
+    <div class="side-foot">Next brief <b>Mon 19 Oct, 6:30 AM</b><br>Domain changes apply from the next run.</div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+    <div class="topbar">
+      <div>
+        <div class="kicker">Monday Brief · No. 2</div>
+        <h1>Week of 5–11 October 2026</h1>
+        <div class="meta">
+          <span><b>8 min</b> read</span>
+          <span><b>3</b> to bring to clients</span>
+          <span><b>24</b> papers picked from 999 scanned</span>
+          <span>Emailed Mon 12 Oct, 6:30 AM</span>
+        </div>
+      </div>
+      <div class="tools">
+        <button class="btn" onclick="toggleTheme()">Light / dark</button>
+        <button class="btn">Export shortlist</button>
+      </div>
+    </div>
+
+    <section class="tldr">
+      <h2>This week in 30 seconds</h2>
+      <ol>
+        <li><b>Agent guardrails are weaker than they look.</b> A one-word change got past typed safety filters in over 60% of tests. <span>AI agents · AI safety</span></li>
+        <li><b>Coding-agent benchmarks are leaking.</b> The field is moving to live "arenas", and AI-written tests are risky for regression testing. <span>LLMs for code · Evaluation</span></li>
+        <li><b>The same prompt doesn't give the same answer.</b> Run-to-run variance at temperature zero matters for anyone putting LLMs into reporting workflows. <span>Evaluation · AI safety</span></li>
+      </ol>
+    </section>
+
+    <div class="sec-head">
+      <h2>Bring to a client</h2>
+      <p>At most 3 a week, across all domains</p>
+    </div>
+    <div class="signals" id="signals"></div>
+
+    <div class="sec-head">
+      <h2>By domain</h2>
+      <p>Up to 3 per domain · everything else is one click away</p>
+    </div>
+    <div id="domains"></div>
+
+    <div class="footer">
+      <span>999 scanned → 500 relevant → 24 picked. Nothing is hidden: <a href="#" style="color:var(--accent)">see every paper</a>.</span>
+      <span>This brief suggests. You decide what to read and share.</span>
+    </div>
+  </main>
+
+  <!-- ============ RIGHT RAIL ============ -->
+  <aside class="rail"><div class="rail-inner">
+    <div class="card">
+      <h3>Client shortlist <span id="shortcount">2</span></h3>
+      <div id="shortlist"></div>
+      <button class="btn" style="width:100%;margin-top:10px">Export as one-pager</button>
+    </div>
+    <div class="card">
+      <h3>Where the volume is <span>on-topic papers</span></h3>
+      <div id="momentum"></div>
+      <p class="note">Week-over-week change appears from brief #3, once there's a previous week to compare.</p>
+    </div>
+    <div class="card">
+      <h3>Did we miss something?</h3>
+      <p class="note" style="margin:0 0 10px">Paste a paper link; it's checked in the next run. Misses this week: <b style="color:var(--ink)">0</b></p>
+      <button class="btn" style="width:100%">Add a missed paper</button>
+    </div>
+  </div></aside>
+</div>
+<div id="tip"></div>
+<div class="mock">Redesign mockup · paper content from brief #2 · client angles and lab names are placeholders</div>
+
+<script>
+const TIER = {1:["t1","Bring to a client"],2:["t2","Read this week"],3:["t3","Just so you know"]};
+const MAT = ["Lab result","Benchmark","Real deployment"];
+
+const domains = [
+ {id:"agents",name:"AI agents",checked:421,onTopic:128,more:125,
+  changing:"Agent safety guardrails and multi-step plans are still fragile. Expect clients to need stricter runtime controls and adversarial testing.",
+  papers:[
+   {tier:1,title:"One Word Opens the Gate: The Option-Channel Attack on Typed Decision Models as Agent Guardrails",url:"https://arxiv.org/abs/2610.12292",
+    why:"Classifier-style guardrails can be bypassed easily, so unauthorised tools could run inside company systems.",
+    about:"Tested seven typed decision models used as agent guardrails. Harmless log text or misleading option names got past the safety filter in over 60% of tests.",
+    angle:"Any client deploying agents with tool access (banking ops, IT service desks). Use it to argue for layered controls rather than one classifier gate.",
+    say:"Single-classifier guardrails failed more than half the time in a new study, so layer your agent controls.",
+    mat:1,type:"Preprint",code:true,hf:0,shared:true},
+   {tier:2,title:"SWE-Duel: Towards a Self-Scaling Arena for Coding Agents",url:"https://arxiv.org/abs/2610.12569",
+    why:"Live evaluation arenas protect buyers from choosing dev tools based on contaminated benchmarks.",
+    about:"Pairs of coding agents inject and repair bugs in real repositories, so the test keeps renewing itself. Eleven configurations compared on writing versus debugging.",
+    angle:"Engineering leaders choosing coding assistants. Ask vendors for arena-style results, not static leaderboard scores.",
+    mat:1,type:"Preprint",code:true,hf:16,also:"LLMs for code, Evaluation",read:true,shared:true},
+   {tier:3,title:"AgentSWE: Can Coding Agents Build the Agent You Actually Want?",url:"https://arxiv.org/abs/2610.13361",
+    why:"Agents built by agents pass the demo and fail on unseen cases. Hidden risk if teams judge by early demos.",
+    about:"A 25-task benchmark checks whether agents delivered by coding agents meet requirements on held-out tests. Most fail basic criteria.",
+    angle:"Clients piloting \"agent factories\". Insist on held-out acceptance tests.",
+    mat:1,type:"Preprint",code:true,hf:0}
+  ]},
+ {id:"code",name:"LLMs for code",checked:215,onTopic:38,more:35,
+  changing:"Autonomous coding agents write brittle tests, struggle with infrastructure changes and miss wider repository context.",
+  papers:[
+   {tier:1,title:"On the Risks of using LLM-Generated Tests for Regression Testing",url:"#",
+    why:"Teams auto-generating tests may be locking in bugs instead of catching them.",
+    about:"Examines how LLM-written tests behave as regression suites, and where they encode current (possibly wrong) behaviour.",
+    angle:"Any client measuring Copilot-style ROI by test coverage. Coverage gains may be overstated.",
+    say:"AI-written tests can lock in today's bugs, so don't count them as quality coverage yet.",
+    mat:1,type:"Preprint",code:false,hf:0}
+  ]},
+ {id:"eval",name:"LLM evaluation and benchmarks",checked:660,onTopic:111,more:108,
+  changing:"Automated judge panels and benchmarks are unstable and sensitive to prompts, and their metrics can mislead.",
+  papers:[
+   {tier:1,title:"Same Query, Different Answer: Run-to-Run Variance in Semantic Query Processing",url:"#",
+    why:"Identical queries at temperature zero return different results, a problem for auditable reporting.",
+    about:"Measures output variance across repeated runs in LLM-backed semantic query engines, even at temperature zero.",
+    angle:"Finance and compliance clients using LLMs over data. Build in repeat-run checks before results reach a report.",
+    say:"Even at temperature zero, the same query gave different answers. Build repeat-run checks into anything auditable.",
+    mat:2,type:"Preprint",code:false,hf:0,also:"AI safety"}
+  ]},
+ {id:"rag",name:"Retrieval-augmented generation (RAG)",checked:183,onTopic:27,more:25,
+  changing:"Work focuses on fixing retrievers' bias toward text and reusing memory across varied documents.",
+  papers:[
+   {tier:2,title:"Accurate but Not Humble: Evaluating Epistemic Humility in LLM Agents under Knowledge Conflict",url:"#",
+    why:"When retrieved documents contradict the model, agents often answer confidently anyway.",
+    about:"An evaluation framework for how agents handle conflicts between what the model knows and what retrieval returns.",
+    angle:"Enterprise knowledge assistants. Supports adding \"I'm not sure\" behaviour and source-conflict flags.",
+    mat:1,type:"Peer-reviewed",code:false,hf:0},
+   {tier:3,title:"Chaos in the Text: Revealing the Modality Preference in Mixed-Modality Retrievers",url:"#",
+    why:"Retrievers favour text and get worse when images and text are mixed. Relevant for document-heavy RAG.",
+    about:"Retrieval over mixed text and image collections shows retrievers systematically prefer text.",
+    angle:"Clients indexing scanned or visual documents. Test retrieval separately for each modality.",
+    mat:1,type:"Preprint",code:false,hf:0}
+  ]},
+ {id:"cv",name:"Computer vision for industrial applications",checked:357,onTopic:41,more:40,
+  changing:"Specialised agent setups and camera adjustments handle factory defects better than plain fine-tuning.",
+  papers:[
+   {tier:2,title:"Is In-Domain Training Enough for Fine-Grained Industrial Anomaly Understanding?",url:"#",
+    why:"Pairing general models with specialist vision experts beats fine-tuning alone for defect detection.",
+    about:"A multi-agent framework combining general multimodal models with specialist visual experts for finding and locating defects.",
+    angle:"Manufacturing clients choosing between fine-tuning and a modular inspection stack.",
+    mat:2,type:"Preprint",code:false,hf:0}
+  ]},
+ {id:"small",name:"Small and efficient models",checked:496,onTopic:88,more:87,
+  changing:"Effort centres on smarter distillation and serving setups to run smaller reasoning models cheaply.",
+  papers:[
+   {tier:2,title:"A Privileged Teacher That Only Scores Cannot Search: Critique-Conditioned On-Policy Self-Distillation for Reasoning",url:"#",
+    why:"Shows where self-distillation breaks for reasoning, which matters for clients betting on small in-house models.",
+    about:"Examines failures in error localisation and credit assignment when self-distilling smaller reasoning models.",
+    angle:"Clients weighing a fine-tuned small model against API calls on cost.",
+    mat:1,type:"Preprint",code:false,hf:0}
+  ]},
+ {id:"mm",name:"Multimodal models",checked:396,onTopic:127,more:126,
+  changing:"Vision models struggle with spatial predictions, earlier conversation turns and misleading charts during web navigation.",
+  papers:[
+   {tier:2,title:"When Charts Deceive Web Agents: A Paired Benchmark for Misleading Visualization-Grounded Tasks",url:"#",
+    why:"Web agents act on misleading charts, a risk for agents that read dashboards.",
+    about:"A paired benchmark measuring how misleading visualisations change web agents' multi-step decisions.",
+    angle:"Clients automating analyst workflows with browser agents.",
+    mat:1,type:"Preprint",code:false,hf:0,also:"AI agents"}
+  ]},
+ {id:"safety",name:"AI safety and reliability in deployment",checked:716,onTopic:131,more:130,
+  changing:"Output instability, unreliable legal citations and the need for proactive security boundaries.",
+  papers:[
+   {tier:2,title:"From Reactive Containment to Proactive Assurance: Lessons from OpenAI, Anthropic, and Google Agent Security Incidents",url:"#",
+    why:"A cross-vendor incident review, useful framing for agent security governance.",
+    about:"Reviews public agent security incidents at three major labs and proposes proactive assurance practices.",
+    angle:"Boards and CISOs drafting AI governance. Ready-made case material.",
+    mat:3,type:"Preprint",code:false,hf:0}
+  ]}
+];
+
+const esc = s => s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const steps = m => `<span class="maturity"><span class="steps">${[1,2,3].map(i=>`<i class="${i<=m?'on':''}"></i>`).join("")}</span>${MAT[m-1]}</span>`;
+const tier = t => `<span class="tier ${TIER[t][0]}">${TIER[t][1]}</span>`;
+const lab = `<span class="lab">Lab: <i>from Semantic Scholar</i></span>`;
+const metaBits = p => [p.type, p.code?"Code shared":null, p.hf>0?`${p.hf} upvotes on Hugging Face`:null, p.also?`Also in: ${p.also}`:null].filter(Boolean).map(x=>`<span>${x}</span>`).join("");
+
+let pid = 0; const all = [];
+domains.forEach(d=>d.papers.forEach(p=>{p.id=pid++;p.domain=d.name;all.push(p)}));
+
+/* sidebar */
+document.getElementById("domnav").innerHTML = domains.map(d=>`<a href="#d-${d.id}">${esc(d.name.replace(" (RAG)",""))}<span class="n">${d.papers.length}</span></a>`).join("");
+
+/* top signals */
+document.getElementById("signals").innerHTML = all.filter(p=>p.tier===1).map(p=>`
+ <article class="sig">
+  <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">${tier(1)}<span class="topic">${esc(p.domain)}</span></div>
+  <h3><a href="${p.url}" target="_blank" rel="noopener">${esc(p.title)}</a></h3>
+  ${lab}
+  <div class="say"><small>Say it in the meeting</small>${esc(p.say)}</div>
+  <div class="foot">${steps(p.mat)}${actBtns(p,true)}</div>
+ </article>`).join("");
+
+/* domains */
+document.getElementById("domains").innerHTML = domains.map(d=>`
+ <section class="domain" id="d-${d.id}">
+  <div class="domain-head"><h3>${esc(d.name)}</h3><div class="counts">${d.onTopic} on-topic of ${d.checked} scanned</div></div>
+  <p class="changing"><b>What's changing:</b> ${esc(d.changing)}</p>
+  ${d.papers.map(p=>`
+  <details class="paper">
+   <summary>
+    ${tier(p.tier)}
+    <div><div class="ptitle">${esc(p.title)}</div><div class="pwhy">${esc(p.why)}</div><div class="pmeta">${metaBits(p)}</div></div>
+    <span class="chev">›</span>
+   </summary>
+   <div class="pbody">
+    <div><h4>What it's about</h4><p>${esc(p.about)}</p></div>
+    <div><h4>Client angle</h4><p>${esc(p.angle)}</p></div>
+    <div style="grid-column:1/-1;display:flex;gap:18px;flex-wrap:wrap;align-items:center">${steps(p.mat)}${lab}</div>
+    <div class="actions">${actBtns(p)}<a href="${p.url}" target="_blank" rel="noopener">Open paper ↗</a></div>
+   </div>
+  </details>`).join("")}
+  <a class="more" href="#">+ ${d.more} more on-topic papers →</a>
+ </section>`).join("");
+
+function actBtns(p,compact){
+  const s = compact ? "" : `<button class="act" data-k="read" data-id="${p.id}" aria-pressed="${!!p.read}">Read fully</button>`;
+  return `<span style="display:flex;gap:6px;flex-wrap:wrap">${s}<button class="act" data-k="shared" data-id="${p.id}" aria-pressed="${!!p.shared}">${compact?"Shortlist":"Share with a client"}</button>${compact?"":`<button class="act no" data-k="no" data-id="${p.id}" aria-pressed="false">Not useful</button>`}</span>`;
+}
+
+document.addEventListener("click",e=>{
+  const b = e.target.closest(".act"); if(!b) return;
+  e.preventDefault();
+  const p = all[+b.dataset.id], k = b.dataset.k;
+  p[k] = !p[k];
+  document.querySelectorAll(`.act[data-id="${p.id}"][data-k="${k}"]`).forEach(x=>x.setAttribute("aria-pressed",p[k]));
+  renderShort();
+});
+
+function renderShort(){
+  const s = all.filter(p=>p.shared);
+  document.getElementById("shortcount").textContent = s.length;
+  document.querySelectorAll('.nav a .n')[0].textContent = s.length;
+  document.getElementById("shortlist").innerHTML = s.length ? s.map(p=>`<div class="short">${esc(p.title.length>70?p.title.slice(0,68)+"…":p.title)}<small>${esc(p.domain)}</small></div>`).join("") : `<p class="note" style="margin:0">Nothing shortlisted yet.</p>`;
+}
+renderShort();
+
+/* volume bars (real on-topic counts from brief #2) */
+const max = Math.max(...domains.map(d=>d.onTopic));
+document.getElementById("momentum").innerHTML = [...domains].sort((a,b)=>b.onTopic-a.onTopic).map(d=>`
+ <div class="mbar" data-tip="${esc(d.name)}: ${d.onTopic} on-topic of ${d.checked} scanned (${Math.round(d.onTopic/d.checked*100)}%)">
+  <span class="lbl">${esc(d.name)}</span>
+  <div class="track"><div class="fill" style="width:${d.onTopic/max*100}%"></div></div><span class="v">${d.onTopic}</span>
+ </div>`).join("");
+const tip = document.getElementById("tip");
+document.querySelectorAll("[data-tip]").forEach(el=>{
+  el.addEventListener("mousemove",e=>{tip.textContent=el.dataset.tip;tip.style.opacity=1;tip.style.left=(e.clientX+12)+"px";tip.style.top=(e.clientY+12)+"px"});
+  el.addEventListener("mouseleave",()=>tip.style.opacity=0);
+});
+
+/* theme */
+function toggleTheme(){
+  const r=document.documentElement, dark = r.dataset.theme ? r.dataset.theme==="dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  r.dataset.theme = dark ? "light" : "dark";
+}
+</script>
+</body>
+</html>
