@@ -1,6 +1,7 @@
 // Shared pieces of the dashboard UI. Presentation only — data and behaviour live in lib/ and actions.
 import { q1 } from "@/lib/db";
-import { TYPE_LABEL, aboutText, facts, olderLabel, whyText, type ItemView } from "@/lib/brief";
+import { TYPE_LABEL, aboutText, evidenceLabel, labText, olderLabel, signals, whyText, type ItemView } from "@/lib/brief";
+import { TIER_LABEL, type Tier } from "@/lib/steps/rank";
 import { istShort } from "@/lib/time";
 import { runDailyNow, makeBriefNow } from "./actions";
 import { MarkButtons } from "./marks";
@@ -11,10 +12,9 @@ export { MarkButtons };
 
 export const TYPE_BADGE: Record<string, string> = { ...TYPE_LABEL, new_way_to_see_problem: "New way to see a problem" };
 
-/** Status / type / score / older badges for a paper (pastel). */
+/** Status / type / older badges for a paper (pastel). The 0–10 score is internal and never shown. */
 export function PaperBadges(p: {
   type?: string | null;
-  score?: number | null;
   pub_status: string;
   venue?: string | null;
   older?: boolean;
@@ -28,61 +28,80 @@ export function PaperBadges(p: {
       <span className={`badge ${p.pub_status === "peer_reviewed" ? "peer" : ""}`} title={p.venue ?? undefined}>
         {p.pub_status === "peer_reviewed" ? "Peer-reviewed" : "Preprint"}
       </span>
-      {p.score !== null && p.score !== undefined && <span className="badge score">{p.score}/10 suggested</span>}
       {p.older && <span className="badge older">{olderLabel(p.year ?? null).replace(" — discussed this week", "")}</span>}
     </div>
   );
 }
 
-/** Muted facts: venue, citations, upvotes, code, Discussed in. */
-export function FactsLine({ i }: { i: ItemView }) {
-  const f = facts(i); // [status, citations, upvotes, code, blogs]
+/** Bring to a client · Read this week · Just so you know. */
+export function TierPill({ tier }: { tier: Tier | null | undefined }) {
+  if (!tier) return null;
+  return <span className={`tier t${tier}`}>{TIER_LABEL[tier]}</span>;
+}
+
+/** How strong the evidence is: Lab result → Benchmark → Real deployment, as a 3-step meter. */
+export function EvidenceMeter({ level }: { level: number | null | undefined }) {
+  const label = evidenceLabel(level ?? null);
+  if (!label || !level) return null;
   return (
-    <div className="facts">
-      {i.pub_status === "peer_reviewed" && i.venue && <span>📄 {i.venue}</span>}
-      <span>📈 {f[1]}</span>
-      <span>👍 {f[2]}</span>
-      <span>
-        {i.code_url ? (
-          <>💻 <a href={i.code_url} target="_blank" rel="noreferrer">Code shared</a></>
-        ) : (
-          <>💻 {f[3]}</>
-        )}
+    <span className="maturity" title={`How strong the evidence is: ${label} (Lab result → Benchmark → Real deployment)`}>
+      <span className="meter" aria-hidden="true">
+        {[1, 2, 3].map((k) => <i key={k} className={k <= level ? "on" : ""} />)}
       </span>
-      {i.discussed_in.length > 0 && (
-        <span>
-          📰 Discussed in{" "}
-          {i.discussed_in.map((b, k) => (
-            <span key={b.url}>
-              {k > 0 && ", "}
-              <a href={b.url} target="_blank" rel="noreferrer">{b.title}</a>
-            </span>
-          ))}
-        </span>
-      )}
-    </div>
+      {label}
+    </span>
   );
 }
 
-/** A paper shown in full in the brief. */
-export function PaperCard({ i }: { i: ItemView }) {
+/** One collapsible paper row: tier · title · lab · one "why it matters" line; details open on click. */
+export function PaperRow({ i, topicName }: { i: ItemView; topicName: (id: number) => string | undefined }) {
+  const lab = labText(i);
+  const sig = signals(i);
+  const also = i.also_topics.map(topicName).filter(Boolean).join(", ");
   return (
-    <article className={`paper ${pc(i.topic_id)}`}>
-      <a className="title" href={i.url} target="_blank" rel="noreferrer">{i.title}</a>
-      <PaperBadges type={i.type} score={i.score} pub_status={i.pub_status} venue={i.venue} older={i.older} year={i.published_year} />
-      <FactsLine i={i} />
-      <div className="explain">
+    <details className={`prow ${pc(i.topic_id)}`}>
+      <summary>
+        <TierPill tier={i.tier} />
+        <div className="prow-main">
+          <div className="ptitle">{i.title}</div>
+          <div className="pwhy">{whyText(i)}</div>
+          <div className="pmeta">
+            {lab && <span className="lab">{lab}</span>}
+            {sig.map((x) => <span key={x}>{x}</span>)}
+            {also && <span>Also relevant to: {also}</span>}
+          </div>
+        </div>
+        <span className="chev" aria-hidden="true">›</span>
+      </summary>
+      <div className="pbody">
         <div>
           <div className="label">What it&apos;s about</div>
           <p>{aboutText(i)}</p>
         </div>
-        <div className="why">
-          <div className="label">Why it may matter</div>
-          <p>{whyText(i)}</p>
+        <div className="angle">
+          <div className="label">Client angle</div>
+          {i.audience && <p><b>Who it matters to:</b> {i.audience}</p>}
+          {i.say && <p className="say-line">“{i.say}”</p>}
+          {!i.audience && !i.say && <p className="muted">Not written this week.</p>}
+        </div>
+        <div className="pbody-foot">
+          <EvidenceMeter level={i.evidence} />
+          {i.discussed_in.length > 0 && (
+            <span className="xsmall muted">
+              Discussed in{" "}
+              {i.discussed_in.map((b, k) => (
+                <span key={b.url}>{k > 0 && ", "}<a href={b.url} target="_blank" rel="noreferrer">{b.title}</a></span>
+              ))}
+            </span>
+          )}
+        </div>
+        <div className="pbody-actions">
+          <MarkButtons paperId={i.paper_id} itemId={i.id} topicId={i.topic_id} marks={i.marks} />
+          <a className="open-paper" href={i.url} target="_blank" rel="noreferrer">Open paper ↗</a>
+          {i.code_url && <a className="open-paper" href={i.code_url} target="_blank" rel="noreferrer">Code ↗</a>}
         </div>
       </div>
-      <MarkButtons paperId={i.paper_id} itemId={i.id} topicId={i.topic_id} marks={i.marks} />
-    </article>
+    </details>
   );
 }
 

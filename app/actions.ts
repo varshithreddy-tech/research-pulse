@@ -142,3 +142,20 @@ export async function setTopicActive(id: number, active: boolean): Promise<void>
   if (active) await backfillTopic(id);
   revalidatePath("/", "layout");
 }
+
+// ---- Client shortlist tags (free text, reusable) ----
+
+export async function addShortlistTag(paperId: number, raw: string): Promise<void> {
+  const { normalizeTag } = await import("@/lib/shortlist");
+  const tag = normalizeTag(raw);
+  if (!tag) return;
+  // Reuse an existing tag's spelling when only the case differs.
+  const same = await q1<{ tag: string }>(`SELECT tag FROM shortlist_tags WHERE lower(tag) = lower($1) LIMIT 1`, [tag]);
+  await q(`INSERT INTO shortlist_tags (paper_id, tag) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [paperId, same?.tag ?? tag]);
+  revalidatePath("/shortlist");
+}
+
+export async function removeShortlistTag(paperId: number, tag: string): Promise<void> {
+  await q(`DELETE FROM shortlist_tags WHERE paper_id = $1 AND lower(tag) = lower($2)`, [paperId, tag]);
+  revalidatePath("/shortlist");
+}

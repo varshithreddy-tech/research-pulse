@@ -46,9 +46,9 @@ export function Funnel({ checked, onTopic, inBrief, href }: { checked: number; o
   if (!checked) return null;
   const w = (n: number) => `${Math.max(3, Math.min(100, (n / checked) * 100))}%`;
   const rows = [
-    { n: checked, label: "papers checked", tone: 0 },
+    { n: checked, label: "papers scanned", tone: 0 },
     { n: onTopic, label: "judged on-topic for at least one topic", tone: 1 },
-    { n: inBrief, label: "shown in full in this brief", tone: 2 },
+    { n: inBrief, label: "picked for the brief", tone: 2 },
   ];
   return (
     <div className="funnel" aria-label="How this week's papers were narrowed down">

@@ -1,10 +1,18 @@
 // The brief as data (shared by the email and the dashboard) and its email rendering.
-// Facts and counts come straight from Neon; Gemini's words are only the reasons and "What's changing".
+// Facts and counts come straight from Neon (lib/numbers.ts defines every count); Gemini's words are
+// only the summary, "What's changing", themes, and each picked paper's plain text and client angle.
 import { q, q1 } from "./db";
 import { appUrl } from "./env";
 import { weekLabel } from "./time";
 import { MARK_KINDS, MARK_LABEL, makeMarkToken } from "./markToken";
 import { dehype } from "./plain";
+import { briefNumbers, olderSql, readMinutes, type BriefNumbers } from "./numbers";
+
+export { olderSql };
+import { TIER_LABEL, type Tier } from "./steps/rank";
+import { EVIDENCE_LABEL, type SummaryLine, type Theme } from "./steps/write";
+
+export type { SummaryLine, Theme };
 
 export const TYPE_LABEL: Record<string, string> = {
   new_test: "New test",
@@ -15,16 +23,6 @@ export const TYPE_LABEL: Record<string, string> = {
 
 export const FOOTER = "This brief suggests. You decide what to read and what to share.";
 
-/**
- * An "older paper": reached us through a blog, a research-site search or "You missed this" (not the
- * arXiv category fetch) and was published before the window starts. Kept and shown, labelled
- * "Older paper (YEAR) — discussed this week", never counted as new, ranked below new papers.
- * `p` is the papers alias; `start` the SQL expression for the window start.
- */
-export function olderSql(p: string, start: string): string {
-  return `(${p}.found_via <> 'arxiv' AND ${p}.published_at IS NOT NULL AND ${p}.published_at < ${start})`;
-}
-
 export function olderLabel(year: number | null): string {
   return `Older paper${year ? ` (${year})` : ""} — discussed this week`;
 }
@@ -32,8 +30,8 @@ export function olderLabel(year: number | null): string {
 export interface TopicCounts {
   topic_id: number;
   name: string;
-  checked: number;
-  relevant: number;
+  checked: number; // scanned for this topic (new papers)
+  relevant: number; // judged on-topic for this topic
   not_relevant: number;
   not_assessed: number;
   pending: number;
@@ -41,7 +39,8 @@ export interface TopicCounts {
 }
 
 export interface WindowCounts {
-  papers_checked: number; // NEW papers only
+  papers_checked: number; // "scanned": unique NEW research papers
+  on_topic: number; // unique new papers on-topic for at least one active topic
   older_discussed: number;
   topics: TopicCounts[];
   blogs_checked: number;
@@ -51,7 +50,7 @@ export interface WindowCounts {
   unconfirmed: number;
 }
 
-/** What the system checked between `ws` and `we` (by when papers were first found). */
+/** The week's counts (by when papers were first found, `ws` ≤ t < `we`). One definition: lib/numbers.ts. */
 export async function windowCounts(ws: Date | string, we: Date | string): Promise<WindowCounts> {
   const topics = await q<TopicCounts>(
     `SELECT t.id AS topic_id, t.name,
@@ -64,19 +63,21 @@ export async function windowCounts(ws: Date | string, we: Date | string): Promis
      FROM topics t
      LEFT JOIN (
        SELECT x.*, ${olderSql("p", "$1")} AS older FROM paper_topics x JOIN papers p ON p.id = x.paper_id
-       WHERE p.first_seen_at >= $1 AND p.first_seen_at < $2 AND p.confirm_status = 'confirmed'
+       WHERE p.first_seen_at >= $1 AND p.first_seen_at < $2 AND p.confirm_status = 'confirmed' AND p.is_research_paper
      ) pt ON pt.topic_id = t.id
      WHERE t.active GROUP BY t.id ORDER BY t.sort_order, t.id`,
     [ws, we],
   );
+  const NEW = `p.first_seen_at >= $1 AND p.first_seen_at < $2 AND p.confirm_status = 'confirmed' AND p.is_research_paper`;
   const totals = await q1<Omit<WindowCounts, "topics">>(
     `SELECT
        (SELECT count(DISTINCT pt.paper_id) FROM paper_topics pt JOIN papers p ON p.id = pt.paper_id
-          JOIN topics t ON t.id = pt.topic_id AND t.active
-        WHERE p.first_seen_at >= $1 AND p.first_seen_at < $2 AND p.confirm_status = 'confirmed' AND NOT ${olderSql("p", "$1")})::int AS papers_checked,
+          JOIN topics t ON t.id = pt.topic_id AND t.active WHERE ${NEW} AND NOT ${olderSql("p", "$1")})::int AS papers_checked,
        (SELECT count(DISTINCT pt.paper_id) FROM paper_topics pt JOIN papers p ON p.id = pt.paper_id
           JOIN topics t ON t.id = pt.topic_id AND t.active
-        WHERE p.first_seen_at >= $1 AND p.first_seen_at < $2 AND p.confirm_status = 'confirmed' AND ${olderSql("p", "$1")})::int AS older_discussed,
+        WHERE ${NEW} AND NOT ${olderSql("p", "$1")} AND pt.status = 'assessed' AND pt.relevant)::int AS on_topic,
+       (SELECT count(DISTINCT pt.paper_id) FROM paper_topics pt JOIN papers p ON p.id = pt.paper_id
+          JOIN topics t ON t.id = pt.topic_id AND t.active WHERE ${NEW} AND ${olderSql("p", "$1")})::int AS older_discussed,
        (SELECT count(*) FROM blogs WHERE found_at >= $1 AND found_at < $2)::int AS blogs_checked,
        (SELECT count(*) FROM blogs WHERE found_at >= $1 AND found_at < $2 AND evidence_status = 'paper_confirmed')::int AS blogs_with_paper,
        (SELECT count(*) FROM blogs WHERE found_at >= $1 AND found_at < $2 AND evidence_status IN ('no_paper', 'link_not_confirmed'))::int AS blogs_no_paper,
@@ -99,14 +100,22 @@ export interface ItemView {
   relevance: string;
   importance_status: string;
   type: string | null;
-  score: number | null;
+  score: number | null; // internal: ranking only, never shown
   reason_line1: string | null;
   reason_line2: string | null;
   rank: number | null;
-  in_brief: boolean;
-  also_shown_in: number | null; // shown in full under this topic; here only "Also relevant here"
-  about: string | null; // "What it's about" (papers shown in full only)
-  why: string | null; // plain "Why it may matter" (papers shown in full only)
+  in_brief: boolean; // picked
+  tier: Tier | null;
+  also_shown_in: number | null;
+  also_topics: number[]; // other topics this paper is on-topic for ("also relevant to")
+  about: string | null;
+  why: string | null;
+  audience: string | null;
+  evidence: number | null; // 1 Lab result · 2 Benchmark · 3 Real deployment
+  say: string | null;
+  affiliation: string | null;
+  first_author: string | null;
+  author_count: number;
   older: boolean;
   published_year: number | null;
   citations: number | null;
@@ -124,51 +133,50 @@ export interface ItemView {
 export async function briefItems(briefId: number, onlyInBrief: boolean): Promise<ItemView[]> {
   return q<ItemView>(
     `SELECT bi.id, bi.paper_id, bi.topic_id, p.title, p.url, p.one_line, p.pub_status, COALESCE(p.venue, bi.s2_venue, p.journal_ref) AS venue,
-       bi.relevance, bi.importance_status, bi.type, bi.score, bi.reason_line1, bi.reason_line2, bi.rank, bi.in_brief, bi.also_shown_in, bi.about, bi.why, bi.older, bi.published_year,
-       bi.citations, bi.influential_citations, bi.s2_status, bi.author_info, bi.hf_upvotes, bi.hf_status,
+       bi.relevance, bi.importance_status, bi.type, bi.score, bi.reason_line1, bi.reason_line2, bi.rank, bi.in_brief, bi.tier, bi.also_shown_in,
+       COALESCE((SELECT array_agg(o.topic_id ORDER BY t.sort_order, t.id) FROM brief_items o JOIN topics t ON t.id = o.topic_id
+                 WHERE o.brief_id = bi.brief_id AND o.paper_id = bi.paper_id AND o.topic_id <> bi.topic_id AND o.relevance = 'yes'), '{}') AS also_topics,
+       bi.about, bi.why, bi.audience, bi.evidence, bi.say, bi.affiliation,
+       p.authors[1] AS first_author, COALESCE(cardinality(p.authors), 0) AS author_count,
+       bi.older, bi.published_year, bi.citations, bi.influential_citations, bi.s2_status, bi.author_info, bi.hf_upvotes, bi.hf_status,
        COALESCE(bi.code_url, p.code_url) AS code_url, bi.blog_count,
        COALESCE((SELECT jsonb_agg(jsonb_build_object('title', b.title, 'url', b.url) ORDER BY b.id)
                  FROM blogs b WHERE b.linked_paper_id = p.id), '[]'::jsonb) AS discussed_in,
        COALESCE((SELECT array_agg(m.kind) FROM marks m WHERE m.paper_id = p.id AND m.kind <> 'missed'), '{}') AS marks
      FROM brief_items bi JOIN papers p ON p.id = bi.paper_id
-     WHERE bi.brief_id = $1 AND ($2::boolean IS FALSE OR bi.in_brief OR bi.also_shown_in IS NOT NULL)
-     ORDER BY bi.topic_id, bi.rank NULLS LAST, bi.id`,
+     WHERE bi.brief_id = $1 AND ($2::boolean IS FALSE OR bi.in_brief)
+     ORDER BY bi.topic_id, bi.tier NULLS LAST, bi.rank NULLS LAST, bi.id`,
     [briefId, onlyInBrief],
   );
 }
 
-/** Plain-fact line for a paper: Preprint/Peer-reviewed, citations, upvotes, code, blogs. */
-export function facts(i: ItemView): string[] {
+/** The lab: Semantic Scholar's institutions; else "First Author et al."; never invented. */
+export function labText(i: Pick<ItemView, "affiliation" | "first_author" | "author_count">): string | null {
+  if (i.affiliation) return i.affiliation;
+  if (!i.first_author) return null;
+  return i.author_count > 1 ? `${i.first_author} et al.` : i.first_author;
+}
+
+/** Facts worth showing: Peer-reviewed venue, and citations / upvotes / blogs only when above zero. */
+export function signals(i: ItemView): string[] {
   const out: string[] = [];
-  out.push(i.pub_status === "peer_reviewed" ? `Peer-reviewed${i.venue ? ` (${i.venue})` : ""}` : "Preprint");
-  if (i.s2_status === "ok") out.push(`Cited ${i.citations ?? 0} times (${i.influential_citations ?? 0} influential)`);
-  else if (i.s2_status === "not_found") out.push("Citations: not yet indexed");
-  else out.push("Citations: not available");
-  if (i.hf_status === "ok") out.push(`${i.hf_upvotes ?? 0} upvotes on Hugging Face`);
-  else if (i.hf_status === "not_listed") out.push("Not featured on Hugging Face");
-  else out.push("Upvotes: not available");
-  out.push(i.code_url ? "Code shared" : "No code link found");
-  out.push(`${i.blog_count} blog${i.blog_count === 1 ? "" : "s"} discussing it`);
+  if (i.pub_status === "peer_reviewed") out.push(`Peer-reviewed${i.venue ? ` (${i.venue})` : ""}`);
+  if ((i.citations ?? 0) > 0) out.push(`Cited ${i.citations} time${i.citations === 1 ? "" : "s"}`);
+  if ((i.hf_upvotes ?? 0) > 0) out.push(`${i.hf_upvotes} upvote${i.hf_upvotes === 1 ? "" : "s"} on Hugging Face`);
+  if (i.code_url) out.push("Code shared");
+  if (i.blog_count > 0) out.push(`${i.blog_count} blog${i.blog_count === 1 ? "" : "s"} discussing it`);
   return out;
 }
 
-/**
- * The facts line on a paper card (brief-format.md): type · score · Preprint/Peer-reviewed · citations ·
- * upvotes · code shared · "Discussed in" if any.
- */
-export function cardFacts(i: ItemView): string[] {
-  const f = facts(i);
-  const out = [i.type ? TYPE_LABEL[i.type] : "", i.score !== null ? `score ${i.score}/10 (suggested)` : "", ...f.slice(0, 4)];
-  if (i.discussed_in.length) out.push(`Discussed in: ${i.discussed_in.map((b) => b.title).join("; ")}`);
-  return out.filter(Boolean);
-}
+export const evidenceLabel = (e: number | null) => (e && e >= 1 && e <= 3 ? EVIDENCE_LABEL[e - 1] : null);
+export const tierLabel = (t: Tier | null) => (t ? TIER_LABEL[t] : null);
 
 /** "What it's about" — falls back to the one-line summary if the writing step had no answer. */
 export function aboutText(i: ItemView): string {
   return dehype(i.about ?? i.one_line ?? "");
 }
 
-/** "Why it may matter" — the plain rewrite, else Question 2's line 2 with hype words removed. */
+/** "Why it matters" — the plain rewrite, else Question 2's line 2 with hype words removed. */
 export function whyText(i: ItemView): string {
   return dehype(i.why ?? i.reason_line2 ?? "");
 }
@@ -196,40 +204,58 @@ export interface DashboardTopic {
   name: string;
   whats_changing: string;
   quiet: boolean;
-  in_brief: number[]; // brief_item ids shown in full
-  also: number[]; // brief_item ids shown as "Also relevant here" (in full under another topic)
-  more_count: number;
+  in_brief: number[]; // brief_item ids picked under this topic (tier, then rank)
+  also: number[]; // (earlier briefs only)
+  more_count: number; // on-topic for this topic − shown here
   counts: TopicCounts;
+  themes?: Theme[];
 }
 
 export interface DashboardBrief {
+  version?: number; // 2 = redesign (summary, tiers, numbers)
   label: string;
   topline: WindowCounts;
   topics: DashboardTopic[];
   footer: string;
+  summary?: SummaryLine[];
+  numbers?: BriefNumbers;
+  top?: number[]; // brief_item ids "Bring to a client", strongest first
+  read_minutes?: number;
 }
 
-export function buildDashboardBrief(label: string, counts: WindowCounts, items: ItemView[], whats: Record<string, string>): DashboardBrief {
-  return {
-    label,
-    topline: counts,
-    footer: FOOTER,
-    topics: counts.topics.map((t) => {
-      const top = items.filter((i) => i.topic_id === t.topic_id && i.in_brief);
-      const also = items.filter((i) => i.topic_id === t.topic_id && i.also_shown_in !== null);
-      const anyRelevant = t.relevant > 0;
-      return {
-        topic_id: t.topic_id,
-        name: t.name,
-        whats_changing: whats[String(t.topic_id)] ?? emptyTopicSentence(t),
-        quiet: anyRelevant && top.length === 0 && also.length === 0,
-        in_brief: top.map((i) => i.id),
-        also: also.map((i) => i.id),
-        more_count: Math.max(0, t.checked + t.older - top.length),
-        counts: t,
-      };
-    }),
-  };
+export function buildDashboardBrief(
+  label: string,
+  counts: WindowCounts,
+  items: ItemView[],
+  whats: Record<string, string>,
+  extra: { summary?: SummaryLine[]; themes?: Record<string, Theme[]> } = {},
+): DashboardBrief {
+  const picked = items.filter((i) => i.in_brief);
+  const numbers = briefNumbers(counts, picked);
+  const topics = counts.topics.map((t) => {
+    const mine = picked.filter((i) => i.topic_id === t.topic_id);
+    const n = numbers.topics.find((x) => x.topic_id === t.topic_id)!;
+    return {
+      topic_id: t.topic_id,
+      name: t.name,
+      whats_changing: whats[String(t.topic_id)] ?? emptyTopicSentence(t),
+      quiet: t.relevant > 0 && mine.length === 0,
+      in_brief: mine.map((i) => i.id),
+      also: [],
+      more_count: n.more,
+      counts: t,
+      themes: extra.themes?.[String(t.topic_id)] ?? [],
+    };
+  });
+  const order = (a: ItemView, b: ItemView) => (a.tier ?? 9) - (b.tier ?? 9) || (b.score ?? 0) - (a.score ?? 0) || (a.rank ?? 0) - (b.rank ?? 0);
+  const top = picked.filter((i) => i.tier === 1).sort(order).map((i) => i.id);
+  const summary = extra.summary ?? [];
+  const read_minutes = readMinutes([
+    ...summary.flatMap((s) => [s.lead, s.detail]),
+    ...topics.flatMap((t) => [t.whats_changing, ...(t.themes ?? []).map((x) => x.tag)]),
+    ...picked.flatMap((i) => [i.title, labText(i), whyText(i), ...(i.tier === 1 ? [i.say, i.audience] : [])]),
+  ]);
+  return { version: 2, label, topline: counts, footer: FOOTER, topics, summary, numbers, top, read_minutes };
 }
 
 export function emptyTopicSentence(t: TopicCounts): string {
@@ -241,31 +267,23 @@ export function emptyTopicSentence(t: TopicCounts): string {
   return "Not written this week (the AI writing step was unavailable) — see the papers below.";
 }
 
+/** "999 scanned → 500 on her topics → 18 picked" (one line; details live on Cost & coverage). */
+export function funnelLine(n: { scanned: number; on_topic: number; picked: number }, whose = "her"): string {
+  const f = (x: number) => x.toLocaleString("en-IN");
+  return `${f(n.scanned)} scanned → ${f(n.on_topic)} on ${whose} topics → ${f(n.picked)} picked`;
+}
+
 // ---------- Email ----------
 
 const esc = (s: string | null | undefined) =>
   String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
-export function toplineText(c: WindowCounts): string[] {
-  const lines = [
-    `Papers checked: ${c.papers_checked.toLocaleString("en-IN")} new — ${c.topics.map((t) => `${t.name} ${t.checked}`).join(" · ")}`,
-    `Blogs checked: ${c.blogs_checked} · blogs with no paper: ${c.blogs_no_paper}${c.blogs_unchecked ? ` · not yet checked: ${c.blogs_unchecked}` : ""}`,
-  ];
-  if (c.older_discussed) lines.push(`Older papers discussed this week (via blogs / research sites, not counted above): ${c.older_discussed}`);
-  const zero = c.topics.filter((t) => t.checked === 0).map((t) => t.name);
-  lines.push(zero.length ? `Topics with 0 papers: ${zero.join(", ")}` : "Topics with 0 papers: none");
-  const waiting = c.topics.reduce((s, t) => s + t.pending, 0);
-  const notAssessed = c.topics.reduce((s, t) => s + t.not_assessed, 0);
-  if (waiting || notAssessed) lines.push(`Still waiting for the relevance check: ${waiting} · not assessed (AI check failed): ${notAssessed}`);
-  return lines;
-}
 
 /** Signed one-click feedback link (see app/api/mark/route.ts). */
 export function markLink(base: string, itemId: number, kind: (typeof MARK_KINDS)[number]): string {
   return `${base}/api/mark?t=${encodeURIComponent(makeMarkToken(itemId, kind))}`;
 }
 
-// Email-safe styles (inline only; tables for layout; max 640px). Same card look as the dashboard.
+// Email-safe styles (inline only; tables for layout; max 640px). Same pastel look as the dashboard.
 const E = {
   font: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif",
   text: "#2a2540",
@@ -275,106 +293,119 @@ const E = {
   accent: "#6a58c8",
   accentSoft: "#ede9fb",
 };
-const EMAIL_TYPE_COLOR: Record<string, [string, string]> = {
-  new_test: ["#e4f0fb", "#33699f"],
-  surprising_result: ["#fdebe1", "#b25e33"],
-  new_way_to_see_problem: ["#ede9fb", "#5a49b8"],
-};
-const EMAIL_TYPE: Record<string, string> = {
-  new_test: "New test",
-  surprising_result: "Surprising result",
-  new_way_to_see_problem: "New way to see a problem",
-};
+const TIER_COLOR: Record<Tier, [string, string]> = { 1: ["#fbe7ee", "#a84468"], 2: ["#ede9fb", "#5a49b8"], 3: ["#f1eef6", "#6b6585"] };
 const pill = (label: string, bg: string, fg: string) =>
-  `<span style="display:inline-block;margin:0 6px 6px 0;padding:2px 9px;border-radius:999px;background:${bg};color:${fg};font-size:12px;font-weight:600;line-height:18px">${esc(label)}</span>`;
+  `<span style="display:inline-block;margin:0 6px 4px 0;padding:2px 9px;border-radius:999px;background:${bg};color:${fg};font-size:12px;font-weight:600;line-height:18px">${esc(label)}</span>`;
+const tierPill = (t: Tier | null) => (t ? pill(TIER_LABEL[t], ...TIER_COLOR[t]) : "");
+const meterHtml = (e: number | null) =>
+  e
+    ? `<span style="white-space:nowrap">${[1, 2, 3].map((k) => `<span style="display:inline-block;width:14px;height:5px;border-radius:3px;margin-right:2px;vertical-align:middle;background:${k <= e ? E.accent : E.line}"></span>`).join("")} <span style="font-size:12px;color:${E.muted}">${esc(evidenceLabel(e))}</span></span>`
+    : "";
+const meterText = (e: number | null) => (e ? `${"■".repeat(e)}${"□".repeat(3 - e)} ${evidenceLabel(e)}` : "");
 const emailLabel = (s: string) =>
-  `<div style="font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:${E.faint};margin:14px 0 3px">${s}</div>`;
+  `<div style="font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:${E.faint};margin:12px 0 3px">${s}</div>`;
 
 export function renderEmail(briefId: number, d: DashboardBrief, items: ItemView[], base = appUrl()): { subject: string; html: string; text: string } {
   const subject = `Research Pulse — ${d.label}`;
   const byId = new Map(items.map((i) => [i.id, i]));
   const topicName = new Map(d.topics.map((x) => [x.topic_id, x.name]));
+  const n = d.numbers ?? briefNumbers(d.topline, items.filter((i) => i.in_brief));
   const h: string[] = [];
   const t: string[] = [];
-  const btn = `display:inline-block;margin:0 6px 6px 0;padding:8px 14px;border:1px solid #cfd5de;border-radius:999px;background:#ffffff;color:${E.text};text-decoration:none;font-size:13px;font-weight:600`;
-  const inBrief = new Set(items.filter((i) => i.in_brief).map((i) => i.paper_id)).size;
-  const tile = (num: string, label: string) =>
-    `<td width="50%" style="padding:6px"><div style="background:#ffffff;border:1px solid ${E.line};border-radius:10px;padding:12px 14px">` +
-    `<div style="font-size:22px;font-weight:700;color:${E.text};line-height:1.2">${esc(num)}</div>` +
-    `<div style="font-size:12px;color:${E.muted}">${esc(label)}</div></div></td>`;
+  const btn = `display:inline-block;margin:0 6px 6px 0;padding:7px 13px;border:1px solid #cfd5de;border-radius:999px;background:#ffffff;color:${E.text};text-decoration:none;font-size:13px;font-weight:600`;
+  const links = (i: ItemView) => `<div style="margin-top:10px">${MARK_KINDS.map((k) => `<a href="${markLink(base, i.id, k)}" style="${btn}">${esc(MARK_LABEL[k])}</a>`).join("")}</div>`;
+  const linksText = (i: ItemView) => MARK_KINDS.map((k) => `  ${MARK_LABEL[k]}: ${markLink(base, i.id, k)}`);
+  const also = (i: ItemView) => i.also_topics.map((id) => topicName.get(id)).filter(Boolean).join(", ");
+  const top = (d.top ?? []).map((id) => byId.get(id)).filter((i): i is ItemView => !!i);
 
   h.push(`<div style="margin:0;padding:24px 12px;background:#f7f5fb;font-family:${E.font};color:${E.text};line-height:1.55">`);
   h.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;margin:0 auto;border-collapse:collapse"><tr><td>`);
 
-  // Header + tiles
+  // Masthead + one stats line
   h.push(`<div style="padding:0 6px 6px"><div style="font-size:13px;color:${E.muted}"><b style="color:${E.text}">Research Pulse</b> · Kavita's weekly AI research brief</div>`);
-  h.push(`<div style="font-size:24px;font-weight:700;margin-top:4px">Week of ${esc(d.label)}</div></div>`);
-  h.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-top:6px">`);
-  h.push(`<tr>${tile(d.topline.papers_checked.toLocaleString("en-IN"), "papers checked (new)")}${tile(String(d.topics.length), "topics covered")}</tr>`);
-  h.push(`<tr>${tile(String(inBrief), "papers in this brief")}${tile(String(d.topline.blogs_checked), `blogs checked · ${d.topline.blogs_no_paper} with no paper`)}</tr></table>`);
-  h.push(`<div style="font-size:12px;color:${E.faint};padding:6px 6px 0">${toplineText(d.topline).slice(2).map(esc).join(" · ")}</div>`);
-  t.push(`RESEARCH PULSE — week of ${d.label}`, "", ...toplineText(d.topline), "");
+  h.push(`<div style="font-size:26px;font-weight:700;margin-top:4px;line-height:1.2">Week of ${esc(d.label)}</div>`);
+  h.push(`<div style="font-size:13px;color:${E.muted};margin-top:6px">${d.read_minutes ? `<b style="color:${E.text}">~${d.read_minutes} min</b> read · ` : ""}<b style="color:${E.text}">${top.length}</b> to bring to a client · ${esc(funnelLine(n, "your"))}</div></div>`);
+  t.push(`RESEARCH PULSE — week of ${d.label}`, `${d.read_minutes ? `~${d.read_minutes} min read · ` : ""}${top.length} to bring to a client · ${funnelLine(n, "your")}`, "");
 
+  // This week in 30 seconds
+  if (d.summary?.length) {
+    h.push(`<div style="margin:16px 6px 0;padding:16px 20px;background:#ffffff;border:1px solid ${E.line};border-radius:12px">`);
+    h.push(`<div style="font-size:16px;font-weight:700;margin-bottom:6px">This week in 30 seconds</div><ol style="margin:0;padding-left:20px">`);
+    for (const s of d.summary)
+      h.push(`<li style="margin:6px 0;font-size:14px"><b>${esc(s.lead)}</b> ${esc(s.detail)} <span style="color:${E.faint}">${esc(s.topic_ids.map((id) => topicName.get(id)).filter(Boolean).join(" · "))}</span></li>`);
+    h.push(`</ol></div>`);
+    t.push("THIS WEEK IN 30 SECONDS", ...d.summary.map((s, k) => `${k + 1}. ${s.lead} ${s.detail}`), "");
+  }
+
+  // Bring to a client: the top 3 first, with the client angle
+  if (top.length) {
+    h.push(`<div style="padding:26px 6px 4px"><div style="font-size:19px;font-weight:700">Bring to a client</div><div style="font-size:12px;color:${E.faint}">At most 3 a week, across all topics</div></div>`);
+    t.push("BRING TO A CLIENT");
+    for (const i of top) {
+      const lab = labText(i);
+      h.push(`<div style="margin:10px 6px 12px;background:#ffffff;border:1px solid ${E.line};border-left:4px solid #f0a3bd;border-radius:12px;padding:16px 18px">`);
+      h.push(`<div>${tierPill(1)}<span style="font-size:12px;color:${E.faint}">${esc(topicName.get(i.topic_id))}</span></div>`);
+      h.push(`<a href="${esc(i.url)}" style="font-size:16px;font-weight:700;line-height:1.35;color:${E.text};text-decoration:none">${esc(i.title)}</a>`);
+      if (lab) h.push(`<div style="font-size:12.5px;color:${E.muted};margin-top:2px">${esc(lab)}</div>`);
+      h.push(`<div style="font-size:14px;margin-top:8px">${esc(whyText(i))}</div>`);
+      if (i.audience) h.push(`${emailLabel("Who it matters to")}<div style="font-size:14px">${esc(i.audience)}</div>`);
+      if (i.say) h.push(`${emailLabel("Say it in the meeting")}<div style="font-size:14px;border-left:3px solid #f0a3bd;padding-left:10px">${esc(i.say)}</div>`);
+      if (i.evidence) h.push(`${emailLabel("How strong the evidence is")}${meterHtml(i.evidence)}`);
+      h.push(links(i), `</div>`);
+      t.push(
+        "",
+        `• ${i.title}`,
+        `  ${i.url}`,
+        ...(lab ? [`  ${lab}`] : []),
+        `  Why it matters: ${whyText(i)}`,
+        ...(i.audience ? [`  Who it matters to: ${i.audience}`] : []),
+        ...(i.say ? [`  Say it in the meeting: ${i.say}`] : []),
+        ...(i.evidence ? [`  Evidence: ${meterText(i.evidence)}`] : []),
+        ...linksText(i),
+      );
+    }
+    t.push("");
+  }
+
+  // By topic: one line per picked paper
+  h.push(`<div style="padding:22px 6px 0"><div style="font-size:19px;font-weight:700">By topic</div><div style="font-size:12px;color:${E.faint}">Papers can fit more than one topic; each is shown once</div></div>`);
   for (const topic of d.topics) {
-    const more = `${base}/papers?brief=${briefId}&topic=${topic.topic_id}`;
-    h.push(`<div style="padding:28px 6px 0"><div style="font-size:19px;font-weight:700">${esc(topic.name)}</div>`);
-    h.push(`<div style="margin:10px 0 14px;padding:10px 14px;background:${E.accentSoft};border-left:3px solid ${E.accent};border-radius:0 8px 8px 0;font-size:14px"><b style="color:${E.accent}">What's changing:</b> ${esc(topic.whats_changing)}</div></div>`);
+    const more = `${base}/papers?brief=${briefId}&topic=${topic.topic_id}&status=more`;
+    const tn = n.topics.find((x) => x.topic_id === topic.topic_id);
+    h.push(`<div style="padding:20px 6px 0"><div style="font-size:17px;font-weight:700">${esc(topic.name)}</div>`);
+    h.push(`<div style="font-size:12px;color:${E.faint}">${tn ? `${tn.on_topic.toLocaleString("en-IN")} on-topic of ${tn.scanned.toLocaleString("en-IN")} scanned` : ""}</div>`);
+    h.push(`<div style="margin:8px 0 10px;padding:10px 14px;background:${E.accentSoft};border-left:3px solid ${E.accent};border-radius:0 8px 8px 0;font-size:14px"><b style="color:${E.accent}">What's changing:</b> ${esc(topic.whats_changing)}</div></div>`);
     t.push(`== ${topic.name.toUpperCase()} ==`, `What's changing: ${topic.whats_changing}`);
+    if (topic.themes?.length) {
+      h.push(`<div style="padding:0 6px 6px">${topic.themes.map((th) => pill(`${th.recurring ? "↻ " : ""}${th.tag}`, "#f6f3fb", E.muted)).join("")}</div>`);
+      t.push(`Themes: ${topic.themes.map((th) => `${th.recurring ? "↻ " : ""}${th.tag}`).join(" · ")}`);
+    }
     if (topic.quiet) {
-      h.push(`<div style="padding:0 6px 8px;font-size:14px;color:${E.muted}">Quiet week — no paper scored 5 or more.</div>`);
-      t.push("Quiet week — no paper scored 5 or more.");
+      h.push(`<div style="padding:0 6px 8px;font-size:14px;color:${E.muted}">Quiet week — no paper scored high enough to pick.</div>`);
+      t.push("Quiet week — no paper scored high enough to pick.");
     }
     for (const id of topic.in_brief) {
       const i = byId.get(id);
       if (!i) continue;
-      const f = facts(i); // [status, citations, upvotes, code, blogs]
-      const badges = [
-        i.type && EMAIL_TYPE[i.type] ? pill(EMAIL_TYPE[i.type], ...EMAIL_TYPE_COLOR[i.type]) : "",
-        i.pub_status === "peer_reviewed" ? pill("Peer-reviewed", "#e3f5ec", "#2c7a52") : pill("Preprint", "#f6f3fb", E.muted),
-        i.score !== null ? pill(`${i.score}/10 suggested`, "#fbe7ee", "#a84468") : "",
-        i.older ? pill(olderLabel(i.published_year).replace(" — discussed this week", ""), "#fdf4d6", "#8a6c14") : "",
-      ].join("");
-      const factsLine = [
-        i.pub_status === "peer_reviewed" && i.venue ? esc(i.venue) : "",
-        esc(f[1]),
-        esc(f[2]),
-        i.code_url ? `<a href="${esc(i.code_url)}" style="color:${E.muted}">Code shared</a>` : esc(f[3]),
-        i.discussed_in.length ? `Discussed in ${i.discussed_in.map((b) => `<a href="${esc(b.url)}" style="color:${E.muted}">${esc(b.title)}</a>`).join(", ")}` : "",
-      ].filter(Boolean).join(" · ");
-      h.push(`<div style="margin:0 6px 12px;background:#ffffff;border:1px solid ${E.line};border-radius:12px;padding:18px 20px">`);
-      h.push(`<a href="${esc(i.url)}" style="font-size:16px;font-weight:700;line-height:1.35;color:${E.text};text-decoration:none">${esc(i.title)}</a>`);
-      h.push(`<div style="margin-top:8px">${badges}</div>`);
-      h.push(`<div style="font-size:12px;color:${E.muted}">${factsLine}</div>`);
-      h.push(`${emailLabel("What it's about")}<div style="font-size:14px">${esc(aboutText(i))}</div>`);
-      h.push(`${emailLabel("Why it may matter")}<div style="font-size:14px">${esc(whyText(i))}</div>`);
-      h.push(`<div style="margin-top:14px;padding-top:12px;border-top:1px solid ${E.line}">${MARK_KINDS.map((k) => `<a href="${markLink(base, i.id, k)}" style="${btn}">${esc(MARK_LABEL[k])}</a>`).join("")}</div>`);
-      h.push(`</div>`);
-      t.push(
-        "",
-        `• ${i.title}`,
-        ...(i.older ? [`  [${olderLabel(i.published_year)}]`] : []),
-        `  ${i.url}`,
-        `  ${cardFacts(i).join(" · ")}`,
-        `  What it's about: ${aboutText(i)}`,
-        `  Why it may matter: ${whyText(i)}`,
-        ...MARK_KINDS.map((k) => `  ${MARK_LABEL[k]}: ${markLink(base, i.id, k)}`),
-      );
+      const lab = labText(i);
+      const sig = signals(i);
+      const alsoTxt = also(i);
+      h.push(`<div style="margin:0 6px 10px;background:#ffffff;border:1px solid ${E.line};border-radius:12px;padding:14px 16px">`);
+      h.push(`<div>${tierPill(i.tier)}</div><a href="${esc(i.url)}" style="font-size:15px;font-weight:700;line-height:1.35;color:${E.text};text-decoration:none">${esc(i.title)}</a>`);
+      h.push(`<div style="font-size:14px;margin-top:4px">${esc(whyText(i))}</div>`);
+      const meta = [lab, ...sig, alsoTxt ? `Also relevant to: ${alsoTxt}` : ""].filter(Boolean);
+      if (meta.length) h.push(`<div style="font-size:12px;color:${E.muted};margin-top:6px">${meta.map(esc).join(" · ")}</div>`);
+      h.push(links(i), `</div>`);
+      t.push("", `• [${i.tier ? TIER_LABEL[i.tier] : "Picked"}] ${i.title}`, `  ${i.url}`, ...(meta.length ? [`  ${meta.join(" · ")}`] : []), `  Why it matters: ${whyText(i)}`, ...linksText(i));
     }
-    for (const id of topic.also) {
-      const i = byId.get(id);
-      if (!i) continue;
-      const where = topicName.get(i.also_shown_in ?? -1) ?? "another topic";
-      h.push(`<div style="padding:2px 6px 6px;font-size:13px;color:${E.muted}">Also relevant here: <a href="${esc(i.url)}" style="color:${E.muted}">${esc(i.title)}</a> (see ${esc(where)})</div>`);
-      t.push("", `Also relevant here: ${i.title} (see ${where})`);
-    }
-    h.push(`<div style="padding:6px 6px 0"><a href="${more}" style="font-size:14px;font-weight:600;color:${E.accent};text-decoration:none">+ ${topic.more_count} more papers checked →</a></div>`);
-    t.push("", `+ ${topic.more_count} more papers checked: ${more}`, "");
+    h.push(`<div style="padding:2px 6px 0"><a href="${more}" style="font-size:14px;font-weight:600;color:${E.accent};text-decoration:none">+ ${topic.more_count} more on-topic papers →</a></div>`);
+    t.push("", `+ ${topic.more_count} more on-topic papers: ${more}`, "");
   }
 
   h.push(`<div style="margin:32px 6px 0;padding-top:14px;border-top:1px solid ${E.line};font-size:13px;color:${E.muted};text-align:center">${esc(FOOTER)}<br>`);
-  h.push(`<a href="${base}/#missed" style="color:${E.accent}">You missed this?</a> · <a href="${base}/" style="color:${E.accent}">Open the dashboard</a> · Feedback links work for 14 days.</div>`);
+  h.push(`Nothing is hidden: <a href="${base}/papers?brief=${briefId}" style="color:${E.accent}">see every paper</a> · <a href="${base}/#missed" style="color:${E.accent}">You missed this?</a> · <a href="${base}/" style="color:${E.accent}">Open the dashboard</a><br>Feedback links work for 14 days.</div>`);
   h.push(`</td></tr></table></div>`);
-  t.push(FOOTER, `You missed this? ${base}/#missed`, `Dashboard: ${base}/`);
+  t.push(FOOTER, `Every paper: ${base}/papers?brief=${briefId}`, `You missed this? ${base}/#missed`, `Dashboard: ${base}/`);
   return { subject, html: h.join("\n"), text: t.join("\n") };
 }
 

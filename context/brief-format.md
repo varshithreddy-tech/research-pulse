@@ -1,41 +1,44 @@
 # brief-format.md — The Monday brief
 
-Kavita must be able to read it in **under 10 minutes**. Short sentences, plain English, no hype.
+Kavita must be able to read it in **under 10 minutes** (about 18 picked papers). Short sentences, plain English, no hype. Answer first.
 
-## Top line (facts, written by code)
+## The week
 
-- Week dates (e.g. "6–12 Oct 2026").
-- New papers checked: total, and per topic.
-- Older papers discussed this week (published before the week, found via blogs / research sites) — counted separately, never as new.
-- Blogs checked / blogs with no paper.
-- Any topic with 0 papers — always named, never left out.
-- Papers still waiting for a check or not assessed, if any.
+"The week" is Monday 00:00 to Monday 00:00 IST, by when the system found a paper. The Monday brief covers the week that just ended.
 
-## Then, for each topic (in Kavita's topic order)
+## Order on the page and in the email
 
-1. **What's changing** — ONE plain-English sentence, **at most 25 words**, on the direction this week's papers point to in this topic. No jargon, no acronyms, no hype words, no numbers. Base it only on the papers given. If the week is quiet, say so plainly.
-2. **Up to 3 papers shown in full**, highest rank first. **Each paper is shown in full only once per brief** — in the first topic (in topic order) where it is in the top 3. In any later topic it gets one line, **"Also relevant here: <title> (see <topic>)"**, and its slot goes to that topic's next-best paper not yet shown. Each paper card, in this order:
-   - **Title** (linked). Older papers also carry "Older paper (YEAR) — discussed this week".
-   - **Facts line:** type · score · Preprint / Peer-reviewed · citations · upvotes · code shared · "Discussed in" if any — "not available" when a source failed.
-   - **What it's about:** 2–3 short sentences — the problem, what they did, what they found.
-   - **Why it may matter:** ONE sentence from a company's point of view — what decision, cost or risk it touches.
+1. **Masthead (code):** week dates, estimated read time, how many to bring to a client, and ONE stats line: "999 scanned → N on her topics → N picked". Detailed counts live on Cost & coverage.
+2. **This week in 30 seconds (Gemini):** 3–4 numbered lines across all topics — a short bold headline and one plain sentence each, with the topic names.
+3. **Bring to a client (code picks, Gemini writes):** the 3 strongest papers across all topics (at most one per topic while possible). Each shows: tier, topic, title (linked), lab, a sentence Kavita could say in a meeting, who it matters to, and an evidence meter (Lab result → Benchmark → Real deployment).
+4. **By topic** (in Kavita's topic order): "N on-topic of M scanned" (papers can fit more than one topic), **What's changing** (one sentence, at most 25 words), 2–3 **theme tags** (↻ when the theme was also there last week), then one row per picked paper: tier · title · lab · one "why it matters" line. "What it's about" and the client angle open on click. Then **"+ N more on-topic papers"** = on-topic papers in this topic minus the ones shown here.
 
-   **Writing rule for both:** plain English for a busy business consultant, not a researcher. Sentences of about 20 words at most. No jargon — if a technical term is needed, explain it in brackets the first time, e.g. "benchmark (a standard test)". No hype words: never "critical", "groundbreaking", "breakthrough", "validated" (or "crucial", "revolutionary", "unprecedented", "state-of-the-art").
-   - **Feedback:** Read fully · Share with a client · Not useful (one-click links in the email, buttons on the dashboard).
-3. **"+ N more papers checked"** — link to every other paper for this topic on the dashboard.
+## Tiers (set by code, never by Gemini)
 
-If no paper in a topic scores 5 or more, show **"Quiet week"** instead of papers (all papers are still behind "+ N more papers checked").
+- **Bring to a client** — at most 3 a week, across all topics.
+- **Read this week** — about 8.
+- **Just so you know** — the rest of the picks.
+
+The 0–10 score is internal; it is used only to order papers and is never shown.
+
+## Each paper once
+
+A paper is picked once, under the topic where it ranks highest. Its other topics show "also relevant to: <topics>". Older papers (published before the week, found via blogs or research sites) are never picked; they stay in All papers, labelled.
+
+## Facts
+
+Lab = the authors' institution from Semantic Scholar; if missing, "First author et al." — never invented. Citations, upvotes and blogs are shown only when above zero.
+
+## Writing rule
+
+Plain English for a busy business consultant, not a researcher. Sentences of about 20 words at most. No jargon — if a technical term is needed, explain it in brackets the first time, e.g. "benchmark (a standard test)". No hype words: never "critical", "groundbreaking", "breakthrough", "validated" (or "crucial", "revolutionary", "unprecedented", "state-of-the-art").
 
 ## Footer
 
 > This brief suggests. You decide what to read and what to share.
 
-Plus a **"You missed this?"** link to the dashboard form.
+Plus "see every paper" (All papers — nothing is hidden) and a **"You missed this?"** link.
 
 ## Your job (Gemini) when writing
 
-You write only:
-- the **"What's changing"** sentence per topic (max 25 words), and
-- **"What it's about"** and a plain **"Why it may matter"** for the papers shown in full (and only those), following the writing rule above.
-
-Code fills in titles, links, facts and counts exactly as stored, so you never restate numbers. Never add a result that is not in the paper's own summary. Never use "validated", "breakthrough", "groundbreaking" or "state-of-the-art". Never mention a paper that was not given to you.
+You write only: the 3–4 summary lines; per topic the "What's changing" sentence and 2–3 theme tags; and for the picked papers only: "What it's about", one "why it matters" line, who it matters to, the evidence level, and one sentence to say in a meeting. Code fills in titles, links, labs, tiers and counts exactly as stored, so you never restate numbers. Never add a result, number, lab or name that is not in the paper's own summary. Never mention a paper that was not given to you.

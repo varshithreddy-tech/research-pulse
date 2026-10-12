@@ -8,6 +8,7 @@ import { gatherReactions } from "../steps/reactions";
 import { scoreBrief } from "../steps/importance";
 import { rankBrief } from "../steps/rank";
 import { writeBrief } from "../steps/write";
+import { briefWeek } from "../time";
 import {
   BUDGET_MS, MAX_HOPS, chainNext, createRun, finishRun, heartbeat, lockOrWait, nothingPending, pendingCounts, processQueue, unlock,
   type Trigger,
@@ -18,10 +19,12 @@ const MAX_WAIT_HOPS = 3;
 
 export async function startWeekly(trigger: Trigger): Promise<{ runId: number; briefId: number }> {
   const runId = await createRun("weekly", trigger);
-  const r = await q1<{ id: number }>(
-    `INSERT INTO briefs (run_id, week_start, week_end) VALUES ($1, now() - interval '7 days', now()) RETURNING id`,
-    [runId],
-  );
+  const week = briefWeek(new Date(), trigger === "cron");
+  const r = await q1<{ id: number }>(`INSERT INTO briefs (run_id, week_start, week_end) VALUES ($1, $2, $3) RETURNING id`, [
+    runId,
+    week.start.toISOString(),
+    week.end.toISOString(),
+  ]);
   return { runId, briefId: r!.id };
 }
 
@@ -120,10 +123,10 @@ export async function weeklyInvocation(runId: number, briefId: number, hop: numb
         await q(`UPDATE briefs SET papers_ranked = $2, status = 'writing' WHERE id = $1`, [b.id, ranked]);
       } else if (b.status === "writing") {
         const counts = await windowCounts(b.week_start, b.week_end);
-        const { sentences, by } = await writeBrief(b.id, topics, counts.topics, ctx);
+        const { sentences, by, summary, themes } = await writeBrief(b.id, topics, counts.topics, ctx);
         const items = await briefItems(b.id, true);
         const label = briefLabel(b);
-        const dash = buildDashboardBrief(label, counts, items, sentences);
+        const dash = buildDashboardBrief(label, counts, items, sentences, { summary, themes });
         const email = renderEmail(b.id, dash, items, origin);
         const cost = await weekCost(b);
         await q(

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { istWeekStart, weekLabel, arxivDate } from "@/lib/time";
+import { briefWeek, istWeekStart, weekBounds, weekLabel, arxivDate } from "@/lib/time";
 import { titlesMatch, cleanSiteTitle } from "@/lib/steps/confirm";
 import { peerReviewAllowed } from "@/lib/steps/clean";
-import { emptyTopicSentence, facts, type ItemView } from "@/lib/brief";
+import { emptyTopicSentence, labText, signals, type ItemView } from "@/lib/brief";
+import { affiliation } from "@/lib/sources/semanticScholar";
 import { isPaperOwnPage } from "@/lib/steps/evidence";
 
 describe("IST weeks", () => {
@@ -11,6 +12,14 @@ describe("IST weeks", () => {
     expect(istWeekStart(new Date("2026-10-12T01:00:00Z")).toISOString()).toBe("2026-10-11T18:30:00.000Z");
     // Sunday 11 Oct 2026, 23:00 IST belongs to the week of 5 Oct
     expect(istWeekStart(new Date("2026-10-11T17:30:00Z")).toISOString()).toBe("2026-10-04T18:30:00.000Z");
+  });
+  it("one definition of the week: Monday to Monday IST; the scheduled brief covers the week that just ended", () => {
+    const mon = new Date("2026-10-12T01:00:00Z"); // Monday 12 Oct, 06:30 IST
+    expect(weekBounds(mon)).toEqual({ start: new Date("2026-10-11T18:30:00Z"), end: new Date("2026-10-18T18:30:00Z") });
+    expect(briefWeek(mon, true)).toEqual({ start: new Date("2026-10-04T18:30:00Z"), end: new Date("2026-10-11T18:30:00Z") });
+    expect(briefWeek(mon, false)).toEqual(weekBounds(mon)); // the button: this week so far
+    const w = briefWeek(mon, true);
+    expect(weekLabel(w.start, w.end)).toBe("5–11 Oct 2026");
   });
   it("labels and arXiv dates", () => {
     expect(weekLabel(new Date("2026-10-04T18:30:00Z"), new Date("2026-10-11T18:30:00Z"))).toBe("5–11 Oct 2026");
@@ -47,8 +56,19 @@ describe("brief text", () => {
     expect(emptyTopicSentence({ ...base, checked: 0 })).toMatch(/No papers were found/);
     expect(emptyTopicSentence({ ...base, checked: 40, not_relevant: 40 })).toMatch(/None of the 40/);
   });
-  it("facts say 'not available' when a source failed", () => {
-    const i = { pub_status: "preprint", venue: null, s2_status: "not_available", hf_status: "not_available", code_url: null, blog_count: 1 } as unknown as ItemView;
-    expect(facts(i)).toEqual(["Preprint", "Citations: not available", "Upvotes: not available", "No code link found", "1 blog discussing it"]);
+  it("hides empty signals: citations, upvotes and blogs only when above zero", () => {
+    const i = { pub_status: "preprint", venue: null, citations: 0, hf_upvotes: null, code_url: null, blog_count: 0 } as unknown as ItemView;
+    expect(signals(i)).toEqual([]);
+    const j = { ...i, pub_status: "peer_reviewed", venue: "ACL", citations: 3, hf_upvotes: 1, code_url: "https://x", blog_count: 2 } as unknown as ItemView;
+    expect(signals(j)).toEqual(["Peer-reviewed (ACL)", "Cited 3 times", "1 upvote on Hugging Face", "Code shared", "2 blogs discussing it"]);
+  });
+  it("shows the lab from Semantic Scholar, else 'First author et al.', and never invents one", () => {
+    expect(labText({ affiliation: "Tsinghua University", first_author: "A. B", author_count: 4 })).toBe("Tsinghua University");
+    expect(labText({ affiliation: null, first_author: "Wei Minn", author_count: 4 })).toBe("Wei Minn et al.");
+    expect(labText({ affiliation: null, first_author: "Abbas Raftari", author_count: 1 })).toBe("Abbas Raftari");
+    expect(labText({ affiliation: null, first_author: null, author_count: 0 })).toBeNull();
+    expect(affiliation({ paperId: "x", title: "t", authors: [{ affiliations: [] }, { affiliations: [] }] })).toBeNull();
+    expect(affiliation({ paperId: "x", title: "t", authors: [{ affiliations: ["University of Southern California;Sharif University of Technology"] }, { affiliations: ["IBM"] }] }))
+      .toBe("University of Southern California · Sharif University of Technology");
   });
 });

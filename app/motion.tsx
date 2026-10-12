@@ -16,7 +16,7 @@ import { useEffect, useState } from "react";
 /** Must match the selector list in globals.css (Motion section). */
 const REVEAL = [
   ".hero", ".tile", ".topic-card", ".topic-band", ".paper", ".card", ".bar-row", ".step", ".tool",
-  ".also", ".more-link", ".view-bar", ".table-wrap", "tbody tr", ".chips > .chip", ".quiet", ".f-row",
+  ".also", ".more-link", ".view-bar", ".table-wrap", "tbody tr", ".chips > .chip", ".quiet", ".f-row", ".sig", ".domain", ".prow",
 ].join(",");
 const RIPPLE = "button, .btn, .chip, .side-link, .topic-card, .more-link";
 const MAX_ROW_INDEX = 40; // only the first 40 rows of a table animate (CSS: nth-child(-n+40))

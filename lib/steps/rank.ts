@@ -1,8 +1,7 @@
 // Monday 4 — Rank, never hide. Gemini orders each topic's best-scored papers using the score and
-// the reaction numbers; code then gives EVERY item a rank. Up to 3 papers scoring 5+ per topic are
-// shown in full; all others stay one click away as "+ N more papers checked". If Gemini fails, code
-// sorts by score. A paper is shown in full only once per brief (first topic, in topic order); later
-// topics show it as one line "Also relevant here" and give the slot to their next-best new paper.
+// the reaction numbers; code then gives EVERY item a rank, picks ~18 papers across topics (each paper
+// once) and sets their tiers. Everything else stays one click away as "+ N more". If Gemini fails,
+// code sorts by score.
 import { q } from "../db";
 import { systemPrompt } from "../context";
 import { geminiJson, isObj, S, type UsageCtx } from "../gemini";
@@ -58,50 +57,90 @@ export function finalOrder(rows: RankRow[], geminiOrder: number[] | null): RankR
   return [...all.filter((r) => !r.older), ...all.filter((r) => r.older)];
 }
 
-const eligible = (r: RankRow) => r.importance_status === "assessed" && (r.score ?? 0) >= MIN_BRIEF_SCORE;
+/** Only new papers scoring 5+ can be picked; older papers stay in All papers, labelled. */
+const eligible = (r: RankRow) => r.importance_status === "assessed" && (r.score ?? 0) >= MIN_BRIEF_SCORE && !r.older;
+
+export const PICK_TARGET = 18; // ~18 picked papers keeps the brief inside 10 minutes
+export const PER_TOPIC_MAX = 3;
+export const TIER1_MAX = 3; // "Bring to a client": at most 3 a week, across all topics
+export const TIER2_MAX = 8; // "Read this week"
+export type Tier = 1 | 2 | 3; // 3 = "Just so you know"
+export const TIER_LABEL: Record<Tier, string> = { 1: "Bring to a client", 2: "Read this week", 3: "Just so you know" };
 
 export interface Selection {
-  full: Set<number>; // brief_item ids shown in full
-  also: Map<number, number>; // brief_item id → topic id where that paper is shown in full
+  full: Set<number>; // brief_item ids picked (each paper once, under its home topic)
+  tier: Map<number, Tier>; // brief_item id → tier, for picked items
 }
 
 /**
- * Which papers each topic shows, across the whole brief. `perTopic` must be in topic order, each
- * list in final rank order. A topic's "top 3" are its first 3 eligible papers (score 5+); any of
- * those already shown in an earlier topic becomes an "Also relevant here" line, and the free slots
- * go to the topic's next-best papers not yet shown — so each topic still shows up to 3 full papers.
+ * Which papers the brief picks, and their tiers. `perTopic` must be in topic order, each list in
+ * final rank order.
+ * - Each paper is picked at most once, under its "home" topic: the topic where it ranks highest
+ *   (ties → the earlier topic). Its other topics show "also relevant to".
+ * - Picks go round the topics: every topic's best paper first, then the second-best, then the
+ *   third (at most 3 per topic), stronger scores first within a round, until ~18 are picked.
+ * - Tiers are forced here, never by Gemini: the 3 strongest picks across topics (at most one per
+ *   topic while possible) are "Bring to a client", the next 8 "Read this week", the rest "Just so
+ *   you know". The numeric score is only used for this ordering.
  */
-export function selectBrief(perTopic: { topicId: number; ordered: RankRow[] }[]): Selection {
-  const full = new Set<number>();
-  const also = new Map<number, number>();
-  const shownIn = new Map<number, number>(); // paper_id → topic id
-  for (const { topicId, ordered } of perTopic) {
-    const candidates = ordered.filter(eligible);
-    for (const r of candidates.slice(0, 3)) {
-      const where = shownIn.get(r.paper_id);
-      if (where !== undefined) also.set(r.id, where);
-    }
-    let slots = 0;
-    for (const r of candidates) {
-      if (slots === 3) break;
-      if (shownIn.has(r.paper_id)) continue;
-      full.add(r.id);
-      shownIn.set(r.paper_id, topicId);
-      slots++;
+export function selectBrief(perTopic: { topicId: number; ordered: RankRow[] }[], target = PICK_TARGET): Selection {
+  // Home topic per paper: best position among its eligible rows.
+  const home = new Map<number, { topicId: number; pos: number }>();
+  perTopic.forEach(({ topicId, ordered }) =>
+    ordered.filter(eligible).forEach((r, pos) => {
+      const cur = home.get(r.paper_id);
+      if (!cur || pos < cur.pos) home.set(r.paper_id, { topicId, pos });
+    }),
+  );
+  const queues = perTopic.map(({ topicId, ordered }) => ({
+    topicId,
+    rows: ordered.filter((r) => eligible(r) && home.get(r.paper_id)?.topicId === topicId).slice(0, PER_TOPIC_MAX),
+  }));
+
+  const picked: { r: RankRow; pos: number; topicId: number }[] = [];
+  for (let pos = 0; pos < PER_TOPIC_MAX && picked.length < target; pos++) {
+    const round = queues
+      .filter((qq) => qq.rows[pos])
+      .map((qq) => ({ r: qq.rows[pos], pos, topicId: qq.topicId }))
+      .sort((a, b) => fallbackOrder(a.r, b.r));
+    for (const p of round) {
+      if (picked.length >= target) break;
+      picked.push(p);
     }
   }
-  return { full, also };
+
+  // Strongest first: score (then attention signals), then position within its topic.
+  const strongest = [...picked].sort((a, b) => (b.r.score ?? 0) - (a.r.score ?? 0) || a.pos - b.pos || fallbackOrder(a.r, b.r));
+  const tier = new Map<number, Tier>();
+  const t1Topics = new Set<number>();
+  for (const p of strongest) {
+    if (tier.size >= TIER1_MAX) break;
+    if (t1Topics.has(p.topicId)) continue;
+    tier.set(p.r.id, 1);
+    t1Topics.add(p.topicId);
+  }
+  for (const p of strongest) {
+    if ([...tier.values()].filter((t) => t === 1).length >= TIER1_MAX) break;
+    if (!tier.has(p.r.id)) tier.set(p.r.id, 1); // fewer topics than 3: fill from the rest
+  }
+  let t2 = 0;
+  for (const p of strongest) {
+    if (tier.has(p.r.id)) continue;
+    tier.set(p.r.id, t2 < TIER2_MAX ? 2 : 3);
+    t2++;
+  }
+  return { full: new Set(picked.map((p) => p.r.id)), tier };
 }
 
-/** Writes ranks + selection for the whole brief. */
+/** Writes ranks + selection + tiers for the whole brief. */
 async function saveSelection(perTopic: { topicId: number; ordered: RankRow[] }[]): Promise<void> {
   const sel = selectBrief(perTopic);
   const updates = perTopic.flatMap(({ ordered }) =>
-    ordered.map((r, i) => ({ id: r.id, rank: i + 1, in_brief: sel.full.has(r.id), also: sel.also.get(r.id) ?? null })),
+    ordered.map((r, i) => ({ id: r.id, rank: i + 1, in_brief: sel.full.has(r.id), tier: sel.tier.get(r.id) ?? null })),
   );
   await q(
-    `UPDATE brief_items bi SET rank = v.rank, in_brief = v.in_brief, also_shown_in = v.also
-     FROM jsonb_to_recordset($1::jsonb) AS v(id int, rank int, in_brief boolean, also int) WHERE bi.id = v.id`,
+    `UPDATE brief_items bi SET rank = v.rank, in_brief = v.in_brief, tier = v.tier, also_shown_in = NULL
+     FROM jsonb_to_recordset($1::jsonb) AS v(id int, rank int, in_brief boolean, tier int) WHERE bi.id = v.id`,
     [JSON.stringify(updates)],
   );
 }

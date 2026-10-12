@@ -11,6 +11,24 @@ export function istWeekStart(d: Date): Date {
   return new Date(midnight - IST_MS);
 }
 
+/**
+ * "The week", used everywhere (brief, All papers, Cost & coverage): Monday 00:00 IST to the next
+ * Monday 00:00 IST, 7 days, by when the system first found a paper.
+ */
+export function weekBounds(d: Date): { start: Date; end: Date } {
+  const start = istWeekStart(d);
+  return { start, end: new Date(start.getTime() + 7 * DAY_MS) };
+}
+
+/**
+ * The week a brief covers: the scheduled Monday brief covers the week that just ended; a brief made
+ * from the button (or the admin API) covers this week so far.
+ */
+export function briefWeek(now: Date, scheduled: boolean): { start: Date; end: Date } {
+  const current = weekBounds(now);
+  return scheduled ? weekBounds(new Date(current.start.getTime() - DAY_MS)) : current;
+}
+
 /** "6–12 Oct 2026" (IST dates, end inclusive). */
 export function weekLabel(start: Date, end: Date): string {
   const s = new Date(start.getTime() + IST_MS);

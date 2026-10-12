@@ -1,7 +1,8 @@
 // Cost & coverage: what was checked, what it cost, and how the system is being used — per week.
 import { q } from "@/lib/db";
 import { istShort, istWeekStart, weekLabel } from "@/lib/time";
-import { windowCounts } from "@/lib/brief";
+import { olderSql, windowCounts } from "@/lib/brief";
+import { Funnel } from "../landing";
 import { runCosts } from "@/lib/runGuard";
 import { Shell } from "../shell";
 import { AdminPanel, Notice, RunStatus, Tile, fmt, triggerLabel, usd } from "../ui";
@@ -37,7 +38,8 @@ export default async function CoveragePage({ searchParams }: { searchParams: Pro
   const weeks = await q<WeekRow>(
     `WITH w AS (SELECT generate_series($1::timestamptz, $2::timestamptz, interval '7 days') AS wk)
      SELECT w.wk,
-       (SELECT count(DISTINCT pt.paper_id) FROM paper_topics pt JOIN papers p ON p.id = pt.paper_id WHERE ${W("p.first_seen_at")} = w.wk)::int AS papers,
+       (SELECT count(DISTINCT pt.paper_id) FROM paper_topics pt JOIN papers p ON p.id = pt.paper_id JOIN topics t ON t.id = pt.topic_id AND t.active
+        WHERE ${W("p.first_seen_at")} = w.wk AND p.confirm_status = 'confirmed' AND p.is_research_paper AND NOT ${olderSql("p", "w.wk")})::int AS papers,
        (SELECT count(*) FROM blogs b WHERE ${W("b.found_at")} = w.wk)::int AS blogs,
        (SELECT count(*) FROM blogs b WHERE ${W("b.found_at")} = w.wk AND b.evidence_status IN ('no_paper', 'link_not_confirmed'))::int AS blogs_no_paper,
        (SELECT count(*) FROM ai_usage a WHERE ${W("a.created_at")} = w.wk)::int AS gemini_calls,
@@ -86,6 +88,13 @@ export default async function CoveragePage({ searchParams }: { searchParams: Pro
   const costs = await runCosts(runs.map((r) => r.id));
 
   const week = weeks.find((w) => new Date(w.wk).getTime() === ws.getTime());
+  // The brief for this week (same week bounds), for the funnel's "picked".
+  const briefRow = await q<{ id: number; picked: number }>(
+    `SELECT b.id, (SELECT count(*) FROM brief_items bi WHERE bi.brief_id = b.id AND bi.in_brief)::int AS picked
+     FROM briefs b WHERE b.status = 'done' AND b.week_start = $1 AND b.week_end = $2 ORDER BY b.id DESC LIMIT 1`,
+    [ws.toISOString(), we.toISOString()],
+  );
+  const brief = briefRow[0] ?? null;
   const maxChecked = Math.max(1, ...detail.topics.map((t) => t.checked));
 
   return (
@@ -115,14 +124,15 @@ export default async function CoveragePage({ searchParams }: { searchParams: Pro
           <Tile tone={0} num={usd(week?.gemini_cost ?? 0, 2)} label="Gemini cost this week" sub={`at ${process.env.GEMINI_PRICE_INPUT_PER_M ?? "?"} / ${process.env.GEMINI_PRICE_OUTPUT_PER_M ?? "?"} $ per 1M tokens`} />
           <Tile tone={3} num={week?.gemini_calls ?? 0} label="Gemini calls" sub={`${fmt(week?.gemini_failed)} failed (retried)`} />
           <Tile tone={1} num={`${fmt(month?.used)} / ${fmt(TAVILY_MONTHLY)}`} label="Tavily searches" sub="used this month (free plan)" />
-          <Tile tone={2} num={detail.papers_checked} label="papers checked" sub={`${fmt(detail.older_discussed)} older papers also discussed`} />
+          <Tile tone={2} num={detail.papers_checked} label="papers scanned" sub={`${fmt(detail.on_topic)} on her topics · ${fmt(detail.older_discussed)} older also discussed`} />
         </div>
+        {brief && <Funnel checked={detail.papers_checked} onTopic={detail.on_topic} inBrief={brief.picked} href={`/papers?brief=${brief.id}&status=picked`} />}
 
         <section className="section">
           <div className="section-head">
             <h2>Papers per topic</h2>
             <span className="xsmall muted">
-              light bar = checked · strong bar = judged on-topic · hover a bar for numbers
+              light bar = scanned · strong bar = judged on-topic · papers can fit more than one topic
             </span>
           </div>
           <div className="card bars">
@@ -141,7 +151,7 @@ export default async function CoveragePage({ searchParams }: { searchParams: Pro
                       <span className="bar-tip">{t.checked ? Math.round((t.relevant / t.checked) * 100) : 0}% on-topic</span>
                     </div>
                     <div className="bar-legend">
-                      {fmt(t.checked)} checked · {fmt(t.relevant)} on-topic
+                      {fmt(t.checked)} scanned · {fmt(t.relevant)} on-topic
                       {t.not_assessed + t.pending ? ` · ${fmt(t.not_assessed + t.pending)} waiting / not assessed` : ""}
                       {` · ${fmt(b?.found)} blogs (${fmt(b?.no_paper)} with no paper)`}
                     </div>
@@ -198,7 +208,7 @@ export default async function CoveragePage({ searchParams }: { searchParams: Pro
             <table className="stack-mobile">
               <thead>
                 <tr>
-                  <th>Week (IST)</th><th className="num">Papers</th><th className="num">Blogs (no paper)</th><th className="num">Gemini calls</th>
+                  <th>Week (IST)</th><th className="num">Papers scanned</th><th className="num">Blogs (no paper)</th><th className="num">Gemini calls</th>
                   <th className="num">Gemini cost</th><th className="num">Tavily</th><th className="num">Briefs sent</th><th className="num">Shared</th><th className="num">Missed</th>
                 </tr>
               </thead>

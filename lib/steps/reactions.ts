@@ -2,7 +2,7 @@
 // past work), Hugging Face (upvotes, code link), and how many saved blogs discuss each paper.
 // A source that fails is marked "not available" — the brief carries on without it.
 import { appendRunError, q } from "../db";
-import { authorInfo, s2Batch, s2Venue } from "../sources/semanticScholar";
+import { affiliation, authorInfo, s2Batch, s2Venue } from "../sources/semanticScholar";
 import { hfDailyPapers } from "../sources/huggingface";
 
 interface Row {
@@ -36,6 +36,7 @@ export async function gatherReactions(briefId: number, weekStart: Date, weekEnd:
               influential: s.influentialCitationCount ?? 0,
               venue: s2Venue(s),
               author_info: authorInfo(s),
+              affiliation: affiliation(s),
             }
           : { paper_id: p.paper_id, status: "not_found" },
       );
@@ -46,8 +47,8 @@ export async function gatherReactions(briefId: number, weekStart: Date, weekEnd:
   }
   await q(
     `UPDATE brief_items bi SET s2_status = v.status, citations = v.citations, influential_citations = v.influential,
-       s2_venue = v.venue, author_info = v.author_info
-     FROM jsonb_to_recordset($2::jsonb) AS v(paper_id int, status text, citations int, influential int, venue text, author_info text)
+       s2_venue = v.venue, author_info = v.author_info, affiliation = v.affiliation
+     FROM jsonb_to_recordset($2::jsonb) AS v(paper_id int, status text, citations int, influential int, venue text, author_info text, affiliation text)
      WHERE bi.brief_id = $1 AND bi.paper_id = v.paper_id`,
     [briefId, JSON.stringify(s2Rows)],
   );
@@ -83,4 +84,26 @@ export async function gatherReactions(briefId: number, weekStart: Date, weekEnd:
      WHERE bi.brief_id = $1`,
     [briefId],
   );
+}
+
+/**
+ * Labs only (no other numbers change): looks up the authors' institutions for the papers picked in
+ * a brief. Used when an existing brief is rebuilt. Returns how many picked papers got an institution.
+ */
+export async function refreshAffiliations(briefId: number): Promise<{ looked: number; found: number }> {
+  const papers = await q<Row>(
+    `SELECT DISTINCT p.id AS paper_id, p.arxiv_id, p.doi FROM brief_items bi JOIN papers p ON p.id = bi.paper_id
+     WHERE bi.brief_id = $1 AND bi.in_brief AND (p.arxiv_id IS NOT NULL OR p.doi IS NOT NULL)`,
+    [briefId],
+  );
+  if (!papers.length) return { looked: 0, found: 0 };
+  const res = await s2Batch(papers.map((p) => (p.arxiv_id ? `ARXIV:${p.arxiv_id}` : `DOI:${p.doi}`)));
+  const rows = papers.map((p, i) => ({ paper_id: p.paper_id, affiliation: affiliation(res[i]) }));
+  await q(
+    `UPDATE brief_items bi SET affiliation = v.affiliation
+     FROM jsonb_to_recordset($2::jsonb) AS v(paper_id int, affiliation text)
+     WHERE bi.brief_id = $1 AND bi.paper_id = v.paper_id`,
+    [briefId, JSON.stringify(rows)],
+  );
+  return { looked: papers.length, found: rows.filter((r) => r.affiliation).length };
 }

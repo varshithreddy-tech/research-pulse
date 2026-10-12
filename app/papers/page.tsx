@@ -1,10 +1,13 @@
-// All papers: every paper checked — in the brief, the "+ N more", not relevant, not assessed, older,
-// unconfirmed — and every blog (including blogs with no paper). Rank, never hide.
+// All papers: every paper found in the week (Mon–Sun IST) — picked, the "+ N more", not relevant,
+// not assessed, older, unconfirmed — and every blog. Each paper is listed ONCE, tagged with every
+// topic it was checked for. Counts use the same definitions as the brief (lib/numbers.ts).
 import { q, q1, allTopics } from "@/lib/db";
-import { olderLabel, olderSql } from "@/lib/brief";
-import { istShort, istWeekStart, weekLabel } from "@/lib/time";
+import { olderLabel } from "@/lib/brief";
+import { PAPER_STATUS, paperStatusCounts, paperWeekCte } from "@/lib/numbers";
+import { TIER_LABEL, type Tier } from "@/lib/steps/rank";
+import { istShort, istWeekStart, weekBounds, weekLabel } from "@/lib/time";
 import { Shell } from "../shell";
-import { MarkButtons, PaperBadges, Relevance, fmt } from "../ui";
+import { MarkButtons, PaperBadges, TierPill, fmt } from "../ui";
 import { InstantSearch } from "../search";
 import { pc } from "../palette";
 
@@ -13,16 +16,6 @@ export const dynamic = "force-dynamic";
 type SP = { brief?: string; week?: string; topic?: string; status?: string; page?: string };
 
 const PAGE = 60;
-const NOT_OLDER = `NOT ${olderSql("p", "$1")}`;
-const STATUS: Record<string, { label: string; sql: string }> = {
-  all: { label: "All", sql: "TRUE" },
-  inbrief: { label: "In brief", sql: "COALESCE(bi.in_brief, false)" },
-  more: { label: "More (on-topic)", sql: `pt.status = 'assessed' AND pt.relevant AND NOT COALESCE(bi.in_brief, false) AND ${NOT_OLDER}` },
-  notrel: { label: "Not relevant", sql: "pt.status = 'assessed' AND NOT pt.relevant" },
-  na: { label: "Not assessed", sql: "pt.status IN ('not_assessed', 'pending')" },
-  older: { label: "Older", sql: olderSql("p", "$1") },
-  unconfirmed: { label: "Could not confirm", sql: "(p.confirm_status <> 'confirmed' OR NOT p.is_research_paper)" },
-};
 const BLOG_STATUS: Record<string, { label: string; sql: string }> = {
   blogs_nopaper: { label: "Blogs with no paper", sql: "b.evidence_status IN ('no_paper', 'link_not_confirmed')" },
   blogs_all: { label: "All blogs", sql: "TRUE" },
@@ -34,13 +27,13 @@ const BLOG_LABEL: Record<string, string> = {
   not_assessed: "Not assessed",
   pending: "Waiting for check",
 };
+const CHIPS = ["all", "scanned", "on_topic", "picked", "more", "notrel", "na", "older", "unconfirmed"];
 
 interface PaperRow {
   id: number;
   title: string;
   url: string;
   one_line: string | null;
-  clean_status: string;
   pub_status: string;
   venue: string | null;
   found_via: string;
@@ -49,17 +42,13 @@ interface PaperRow {
   is_research_paper: boolean;
   older: boolean;
   year: number | null;
-  topic_id: number;
-  topic: string;
-  status: string;
-  relevant: boolean | null;
-  reason: string | null;
+  first_author: string | null;
+  author_count: number;
+  topics: { id: number; name: string; status: string; relevant: boolean | null; reason: string | null }[];
+  home: number | null;
   item_id: number | null;
-  score: number | null;
-  type: string | null;
-  rank: number | null;
-  in_brief: boolean | null;
-  importance_status: string | null;
+  tier: Tier | null;
+  affiliation: string | null;
   marks: string[];
 }
 
@@ -77,42 +66,44 @@ export default async function PapersPage({ searchParams }: { searchParams: Promi
 
   const chosenBrief = Number(sp.brief) || null;
   const brief = chosenBrief ? await q1<{ id: number; week_start: string; week_end: string }>(`SELECT id, week_start, week_end FROM briefs WHERE id = $1`, [chosenBrief]) : null;
-  const ws = brief ? new Date(brief.week_start) : sp.week ? new Date(sp.week) : thisWeek;
-  const we = brief ? new Date(brief.week_end) : new Date(ws.getTime() + 7 * 86_400_000);
-  // "In brief" / "More" are relative to the chosen brief, or the latest finished brief covering this window.
+  // One definition of the week: Monday 00:00 → Monday 00:00 IST.
+  const { start: ws, end: we } = brief ? { start: new Date(brief.week_start), end: new Date(brief.week_end) } : weekBounds(sp.week ? new Date(sp.week) : new Date());
+  // "Picked" / "More" are relative to the chosen brief, or the latest finished brief for this week.
   const ctx = brief ?? (await q1<{ id: number }>(
-    `SELECT id FROM briefs WHERE status = 'done' AND week_end > $1 AND week_start < $2 ORDER BY id DESC LIMIT 1`,
+    `SELECT id FROM briefs WHERE status = 'done' AND week_start = $1 AND week_end = $2 ORDER BY id DESC LIMIT 1`,
     [ws.toISOString(), we.toISOString()],
   ));
   const briefId = ctx?.id ?? null;
   const topicId = Number(sp.topic) || null;
-  const status = sp.status && (STATUS[sp.status] || BLOG_STATUS[sp.status]) ? sp.status : "all";
+  const status = sp.status && (PAPER_STATUS[sp.status] || BLOG_STATUS[sp.status]) ? sp.status : "all";
   const isBlogs = status in BLOG_STATUS;
   const page = Math.max(1, Number(sp.page) || 1);
   const base = [ws.toISOString(), we.toISOString(), topicId, briefId];
 
-  const FROM = `FROM paper_topics pt JOIN papers p ON p.id = pt.paper_id JOIN topics t ON t.id = pt.topic_id
-    LEFT JOIN brief_items bi ON bi.brief_id = $4 AND bi.paper_id = p.id AND bi.topic_id = pt.topic_id
-    WHERE p.first_seen_at >= $1 AND p.first_seen_at < $2 AND ($3::int IS NULL OR pt.topic_id = $3)`;
-  const counts = await q<{ k: string; n: number }>(
-    `${Object.entries(STATUS).map(([k, s]) => `SELECT '${k}' AS k, count(*)::int AS n ${FROM} AND (${s.sql})`).join(" UNION ALL ")}
-     UNION ALL ${Object.entries(BLOG_STATUS)
-       .map(([k, s]) => `SELECT '${k}', count(*)::int FROM blogs b WHERE b.found_at >= $1 AND b.found_at < $2 AND ($3::int IS NULL OR b.topic_id = $3) AND (${s.sql})`)
-       .join(" UNION ALL ")}`,
-    base,
+  const counts = await paperStatusCounts(ws, we, topicId, briefId);
+  const blogCounts = await q<{ k: string; n: number }>(
+    Object.entries(BLOG_STATUS)
+      .map(([k, s]) => `SELECT '${k}' AS k, count(*)::int AS n FROM blogs b WHERE b.found_at >= $1 AND b.found_at < $2 AND ($3::int IS NULL OR b.topic_id = $3) AND (${s.sql})`)
+      .join(" UNION ALL "),
+    base.slice(0, 3),
   );
-  const count = (k: string) => counts.find((c) => c.k === k)?.n ?? 0;
+  const count = (k: string) => counts[k] ?? blogCounts.find((c) => c.k === k)?.n ?? 0;
 
   const papers = isBlogs
     ? []
     : await q<PaperRow>(
-        `SELECT p.id, p.title, p.url, p.one_line, p.clean_status, p.pub_status, p.venue, p.found_via, p.first_seen_at,
-           p.confirm_status, p.is_research_paper, ${olderSql("p", "$1")} AS older, EXTRACT(YEAR FROM p.published_at)::int AS year,
-           pt.topic_id, t.name AS topic, pt.status, pt.relevant, pt.reason,
-           bi.id AS item_id, bi.score, bi.type, bi.rank, bi.in_brief, bi.importance_status,
+        `WITH ${paperWeekCte()}
+         SELECT p.id, p.title, p.url, p.one_line, p.pub_status, p.venue, p.found_via, p.first_seen_at, p.confirm_status, p.is_research_paper,
+           w.older, EXTRACT(YEAR FROM p.published_at)::int AS year, p.authors[1] AS first_author, COALESCE(cardinality(p.authors), 0) AS author_count,
+           (SELECT jsonb_agg(jsonb_build_object('id', t.id, 'name', t.name, 'status', pt.status, 'relevant', pt.relevant, 'reason', pt.reason)
+                   ORDER BY (pt.status = 'assessed' AND pt.relevant) DESC, t.sort_order, t.id)
+              FROM paper_topics pt JOIN topics t ON t.id = pt.topic_id WHERE pt.paper_id = p.id) AS topics,
+           w.home, bi.id AS item_id, bi.tier, bi.affiliation,
            COALESCE((SELECT array_agg(m.kind) FROM marks m WHERE m.paper_id = p.id AND m.kind <> 'missed'), '{}') AS marks
-         ${FROM} AND (${STATUS[status].sql})
-         ORDER BY (bi.rank IS NULL), bi.rank, (pt.status = 'assessed' AND pt.relevant) DESC, p.id DESC
+         FROM w JOIN papers p ON p.id = w.id
+         LEFT JOIN brief_items bi ON bi.brief_id = $4 AND bi.paper_id = p.id AND bi.in_brief
+         WHERE ${PAPER_STATUS[status].sql}
+         ORDER BY (w.home IS NULL), bi.tier NULLS LAST, bi.rank NULLS LAST, w.rel DESC, p.id DESC
          LIMIT ${PAGE} OFFSET ${(page - 1) * PAGE}`,
         base,
       );
@@ -127,6 +118,7 @@ export default async function PapersPage({ searchParams }: { searchParams: Promi
     : [];
   const total = count(status);
   const topicName = topics.find((t) => t.id === topicId)?.name;
+  const label = isBlogs ? BLOG_STATUS[status].label : PAPER_STATUS[status].label;
 
   return (
     <Shell>
@@ -135,8 +127,12 @@ export default async function PapersPage({ searchParams }: { searchParams: Promi
           <div className="eyebrow">Every paper checked — nothing hidden</div>
           <h1>All papers</h1>
           <p className="sub">
-            Every paper checked {brief ? `for brief #${brief.id}` : "in the week"} of {weekLabel(ws, we)}
-            {topicName ? ` · ${topicName}` : ""} — nothing is hidden. Brief papers first.
+            Week of {weekLabel(ws, we)} (Mon–Sun, IST){brief ? ` · brief #${brief.id}` : ""}{topicName ? ` · ${topicName}` : ""}. Each paper is listed once,
+            with every topic it was checked for — papers can fit more than one topic. Picked papers first.
+          </p>
+          <p className="xsmall muted" style={{ marginTop: 8 }}>
+            {fmt(count("scanned"))} scanned → {fmt(count("on_topic"))} on her topics → {fmt(count("picked"))} picked
+            {topicName ? ` (for ${topicName})` : ""}
           </p>
         </div>
 
@@ -158,19 +154,23 @@ export default async function PapersPage({ searchParams }: { searchParams: Promi
           </select>
           {status !== "all" && <input type="hidden" name="status" value={status} />}
           <button>Apply</button>
-          {brief && <a href={link({ topic: sp.topic, status: sp.status }, {})} className="small">Switch to weekly view</a>}
+          {brief && <a href={link({ topic: sp.topic, status: sp.status, week: ws.toISOString() }, {})} className="small">Switch to weekly view</a>}
         </form>
 
         <div className="row" style={{ margin: "16px 0 4px" }}>
           <InstantSearch target="list" placeholder={isBlogs ? "Search these blogs…" : "Search these papers — title, summary, topic or reason…"} />
         </div>
         <div className="chips" style={{ margin: "12px 0 16px" }} role="tablist" aria-label="Status">
-          {Object.entries({ ...STATUS, ...BLOG_STATUS }).map(([k, s]) => (
+          {[...CHIPS.map((k) => [k, PAPER_STATUS[k].label] as const), ...Object.entries(BLOG_STATUS).map(([k, s]) => [k, s.label] as const)].map(([k, lbl]) => (
             <a key={k} href={link(sp, { status: k === "all" ? undefined : k, page: undefined })} className={`chip ${k === status ? "on" : ""}`} aria-current={k === status ? "true" : undefined}>
-              {s.label}<span className="n">{fmt(count(k))}</span>
+              {lbl}<span className="n">{fmt(count(k))}</span>
             </a>
           ))}
         </div>
+        <p className="xsmall faint" style={{ margin: "-6px 0 14px" }}>
+          Scanned = on her topics + not relevant + not assessed. On her topics = picked + more on-topic.
+          {topicId ? " With a topic chosen, “More on-topic” is exactly the brief’s “+ N more” for that topic." : ""}
+        </p>
 
         {!isBlogs && (
           <>
@@ -180,38 +180,50 @@ export default async function PapersPage({ searchParams }: { searchParams: Promi
               <div className="table-wrap" id="list">
                 <table className="stack-mobile">
                   <thead>
-                    <tr><th>Paper</th><th>Topic</th><th>Relevance</th><th>Feedback</th></tr>
+                    <tr><th>Paper</th><th>Topics</th><th>Feedback</th></tr>
                   </thead>
                   <tbody>
-                    {papers.map((p) => (
-                      <tr key={`${p.id}-${p.topic_id}`} data-search={`${p.title} ${p.one_line ?? ""} ${p.topic} ${p.reason ?? ""}`.toLowerCase()}>
-                        <td style={{ minWidth: 260 }}>
-                          <a href={p.url} target="_blank" rel="noreferrer" style={{ fontWeight: 600, color: "var(--text)" }}>{p.title}</a>
-                          <div className="xsmall muted" style={{ marginTop: 4 }}>
-                            {p.one_line ?? (p.clean_status === "pending" ? "Summary pending (next check)." : "Summary not available — open the paper.")}
-                          </div>
-                          <PaperBadges type={p.importance_status === "assessed" ? p.type : null} score={p.importance_status === "assessed" ? p.score : null} pub_status={p.pub_status} venue={p.venue} older={p.older} year={p.year}>
-                            {p.in_brief && <span className="badge ok">In brief{p.rank ? ` · #${p.rank}` : ""}</span>}
-                            {!p.in_brief && p.rank && <span className="badge">Ranked #{p.rank}</span>}
-                            {p.confirm_status !== "confirmed" && <span className="badge bad">{p.confirm_status === "pending" ? "Confirming…" : "Could not confirm"}</span>}
-                            {!p.is_research_paper && <span className="badge">Not a research paper</span>}
-                          </PaperBadges>
-                          {p.older && <div className="xsmall faint" style={{ marginTop: 4 }}>{olderLabel(p.year)}</div>}
-                        </td>
-                        <td data-label="Topic" className={`small ${pc(p.topic_id)}`}><span className="row" style={{ gap: 6, flexWrap: "nowrap" }}><span className="dot" />{p.topic}</span><div className="xsmall faint">via {p.found_via} · {istShort(p.first_seen_at)}</div></td>
-                        <td data-label="Relevance" className="small" style={{ minWidth: 160 }}>
-                          <Relevance status={p.status} relevant={p.relevant} />
-                          {p.reason && <div className="xsmall muted" style={{ marginTop: 4 }}>{p.reason}</div>}
-                        </td>
-                        <td data-label="Feedback"><MarkButtons compact paperId={p.id} itemId={p.item_id} topicId={p.topic_id} marks={p.marks} /></td>
-                      </tr>
-                    ))}
+                    {papers.map((p) => {
+                      const lab = p.affiliation ?? (p.first_author ? `${p.first_author}${p.author_count > 1 ? " et al." : ""}` : null);
+                      const homeName = p.topics.find((t) => t.id === p.home)?.name;
+                      return (
+                        <tr key={p.id} data-search={`${p.title} ${p.one_line ?? ""} ${p.topics.map((t) => `${t.name} ${t.reason ?? ""}`).join(" ")}`.toLowerCase()}>
+                          <td style={{ minWidth: 280 }}>
+                            <a href={p.url} target="_blank" rel="noreferrer" style={{ fontWeight: 600, color: "var(--text)" }}>{p.title}</a>
+                            {lab && <div className="xsmall muted" style={{ marginTop: 2 }}>{lab}</div>}
+                            <div className="xsmall muted" style={{ marginTop: 4 }}>{p.one_line ?? "Summary not available yet — open the paper."}</div>
+                            <PaperBadges pub_status={p.pub_status} venue={p.venue} older={p.older} year={p.year}>
+                              {p.tier && <TierPill tier={p.tier} />}
+                              {p.home && homeName && <span className="badge ok" title={p.tier ? TIER_LABEL[p.tier] : undefined}>Picked · {homeName}</span>}
+                              {p.confirm_status !== "confirmed" && <span className="badge bad">{p.confirm_status === "pending" ? "Confirming…" : "Could not confirm"}</span>}
+                              {!p.is_research_paper && <span className="badge">Not a research paper</span>}
+                            </PaperBadges>
+                            {p.older && <div className="xsmall faint" style={{ marginTop: 4 }}>{olderLabel(p.year)}</div>}
+                            <div className="xsmall faint" style={{ marginTop: 4 }}>via {p.found_via} · found {istShort(p.first_seen_at)}</div>
+                          </td>
+                          <td data-label="Topics" className="small" style={{ minWidth: 220 }}>
+                            <div className="tagcol">
+                              {p.topics.map((t) => {
+                                const on = t.status === "assessed" && t.relevant;
+                                const state = on ? "On-topic" : t.status === "assessed" ? "Not relevant" : t.status === "pending" ? "Waiting for check" : "Not assessed";
+                                return (
+                                  <span key={t.id} className={`ttag ${on ? pc(t.id) : "off"}`} title={`${state}${t.reason ? ` — ${t.reason}` : ""}`}>
+                                    <span className="dot" />{t.name}{!on && <em> · {state.toLowerCase()}</em>}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </td>
+                          <td data-label="Feedback"><MarkButtons compact paperId={p.id} itemId={p.item_id} topicId={p.home ?? p.topics.find((t) => t.relevant)?.id ?? p.topics[0]?.id ?? null} marks={p.marks} /></td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             )}
             <div className="spread small" style={{ marginTop: 14 }}>
-              <span className="muted">{total ? `${fmt((page - 1) * PAGE + 1)}–${fmt(Math.min(page * PAGE, total))} of ${fmt(total)}` : ""}</span>
+              <span className="muted">{total ? `${label}: ${fmt((page - 1) * PAGE + 1)}–${fmt(Math.min(page * PAGE, total))} of ${fmt(total)}` : ""}</span>
               <span className="row">
                 {page > 1 && <a href={link(sp, { page: String(page - 1) })}>← Previous</a>}
                 {page * PAGE < total && <a href={link(sp, { page: String(page + 1) })}>Next →</a>}
@@ -222,7 +234,7 @@ export default async function PapersPage({ searchParams }: { searchParams: Promi
 
         {isBlogs &&
           (blogs.length === 0 ? (
-            <div className="card empty">No blogs found in this window.</div>
+            <div className="card empty">No blogs found in this week.</div>
           ) : (
             <div className="table-wrap" id="list">
               <table className="stack-mobile">

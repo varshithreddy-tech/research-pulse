@@ -22,17 +22,17 @@ const STEPS: { title: string; body: string }[] = [
   {
     title: "Monday: rank the week",
     body:
-      "At 6:30 AM IST the week's relevant papers get reaction numbers (citations from Semantic Scholar, upvotes and code from Hugging Face, blogs discussing them). Gemini asks “why might this matter?” — new test, surprising result or new way to see a problem, with a 0–10 score — and ranks each topic.",
+      "At 6:30 AM IST the week's relevant papers get reaction numbers (citations from Semantic Scholar, upvotes and code from Hugging Face, blogs discussing them). Gemini asks “why might this matter?” — new test, surprising result or new way to see a problem — and ranks each topic. Its 0–10 score is internal: it only orders papers and is never shown.",
   },
   {
     title: "Write and email the brief",
     body:
-      "Up to 3 papers per topic are shown in full — each with what it's about and why it may matter, in plain English — and every other paper stays one click away as “+ N more papers checked”. The brief goes to Kavita by email and appears here on the dashboard. Nothing is ever sent to a client.",
+      "Answer first: the week in 30 seconds, then the (at most) 3 papers to bring to a client. About 18 papers are picked across all topics, each once, in three tiers set by code — Bring to a client (max 3), Read this week (about 8), Just so you know. Each has a lab, a one-line why it matters and a client angle (who it matters to, how strong the evidence is, a sentence for a meeting). Every other paper stays one click away as “+ N more”. The brief goes to Kavita by email and appears here. Nothing is ever sent to a client.",
   },
   {
     title: "Kavita decides",
     body:
-      "She reads in under 10 minutes and marks papers Read fully, Share with a client or Not useful — from the email in one click, or here. Shared papers go to her Client shortlist; “You missed this” catches anything that slipped through. Her marks are fed back to Gemini the next Monday.",
+      "She reads in under 10 minutes and marks papers Read fully, Share with a client or Not useful — from the email in one click, or here. Shared papers go to her Client shortlist, where she tags them by client and exports a one-pager; “You missed this” catches anything that slipped through. Her marks are fed back to Gemini the next Monday.",
   },
 ];
 

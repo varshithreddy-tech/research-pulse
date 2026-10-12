@@ -5,7 +5,7 @@ import { sleep } from "../time";
 
 const API = "https://api.semanticscholar.org/graph/v1";
 export const S2_FIELDS =
-  "title,abstract,url,year,venue,publicationVenue,externalIds,citationCount,influentialCitationCount,authors.name,authors.hIndex,authors.paperCount,journal,publicationDate";
+  "title,abstract,url,year,venue,publicationVenue,externalIds,citationCount,influentialCitationCount,authors.name,authors.hIndex,authors.paperCount,authors.affiliations,journal,publicationDate";
 
 export interface S2Paper {
   paperId: string;
@@ -18,7 +18,7 @@ export interface S2Paper {
   externalIds?: { ArXiv?: string; DOI?: string; ACL?: string; DBLP?: string } | null;
   citationCount?: number | null;
   influentialCitationCount?: number | null;
-  authors?: { name?: string; hIndex?: number | null; paperCount?: number | null }[];
+  authors?: { name?: string; hIndex?: number | null; paperCount?: number | null; affiliations?: string[] | null }[];
   journal?: { name?: string } | null;
   publicationDate?: string | null;
 }
@@ -79,6 +79,23 @@ export function s2Venue(p: S2Paper | null): string | null {
   const v = (p.publicationVenue?.name || p.venue || p.journal?.name || "").trim();
   if (!v || /arxiv/i.test(v)) return null;
   return v;
+}
+
+/**
+ * The authors' institutions as Semantic Scholar lists them — first author's first, then the others,
+ * at most two, e.g. "Tsinghua University · IBM Research". Null when Semantic Scholar has none: the
+ * caller then shows "First Author et al." — an institution is never guessed.
+ */
+export function affiliation(p: S2Paper | null): string | null {
+  const seen = new Map<string, string>();
+  for (const a of p?.authors ?? [])
+    for (const raw of a.affiliations ?? [])
+      for (const part of String(raw).split(";")) {
+        const name = part.replace(/\s+/g, " ").trim();
+        if (name && !seen.has(name.toLowerCase())) seen.set(name.toLowerCase(), name);
+      }
+  const list = [...seen.values()].slice(0, 2);
+  return list.length ? list.join(" · ") : null;
 }
 
 /** "Lead author h-index 12 · 40 papers" — facts about the authors' past work. */
