@@ -265,38 +265,84 @@ export function markLink(base: string, itemId: number, kind: (typeof MARK_KINDS)
   return `${base}/api/mark?t=${encodeURIComponent(makeMarkToken(itemId, kind))}`;
 }
 
+// Email-safe styles (inline only; tables for layout; max 640px). Same card look as the dashboard.
+const E = {
+  font: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif",
+  text: "#17202c",
+  muted: "#5c6878",
+  faint: "#8792a1",
+  line: "#e2e6ec",
+  accent: "#1d4ed8",
+  accentSoft: "#eef2fc",
+};
+const EMAIL_TYPE: Record<string, string> = {
+  new_test: "New test",
+  surprising_result: "Surprising result",
+  new_way_to_see_problem: "New way to see a problem",
+};
+const pill = (label: string, bg: string, fg: string) =>
+  `<span style="display:inline-block;margin:0 6px 6px 0;padding:2px 9px;border-radius:999px;background:${bg};color:${fg};font-size:12px;font-weight:600;line-height:18px">${esc(label)}</span>`;
+const emailLabel = (s: string) =>
+  `<div style="font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:${E.faint};margin:14px 0 3px">${s}</div>`;
+
 export function renderEmail(briefId: number, d: DashboardBrief, items: ItemView[], base = appUrl()): { subject: string; html: string; text: string } {
   const subject = `Research Pulse — ${d.label}`;
   const byId = new Map(items.map((i) => [i.id, i]));
   const topicName = new Map(d.topics.map((x) => [x.topic_id, x.name]));
   const h: string[] = [];
   const t: string[] = [];
-  const btn = "display:inline-block;margin:6px 6px 0 0;padding:5px 10px;border:1px solid #cbd5e1;border-radius:6px;color:#1f2937;text-decoration:none;font-size:13px";
+  const btn = `display:inline-block;margin:0 6px 6px 0;padding:8px 14px;border:1px solid #cfd5de;border-radius:8px;background:#ffffff;color:${E.text};text-decoration:none;font-size:13px;font-weight:600`;
+  const inBrief = new Set(items.filter((i) => i.in_brief).map((i) => i.paper_id)).size;
+  const tile = (num: string, label: string) =>
+    `<td width="50%" style="padding:6px"><div style="background:#ffffff;border:1px solid ${E.line};border-radius:10px;padding:12px 14px">` +
+    `<div style="font-size:22px;font-weight:700;color:${E.text};line-height:1.2">${esc(num)}</div>` +
+    `<div style="font-size:12px;color:${E.muted}">${esc(label)}</div></div></td>`;
 
-  h.push(`<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:680px;margin:0 auto;color:#1f2937;line-height:1.5">`);
-  h.push(`<h1 style="font-size:20px;margin:0 0 4px">Research Pulse</h1><div style="color:#6b7280;margin-bottom:12px">Week of ${esc(d.label)}</div>`);
-  h.push(`<div style="background:#f3f4f6;border-radius:8px;padding:10px 14px;font-size:13px">${toplineText(d.topline).map(esc).join("<br>")}</div>`);
+  h.push(`<div style="margin:0;padding:24px 12px;background:#f4f5f7;font-family:${E.font};color:${E.text};line-height:1.55">`);
+  h.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;margin:0 auto;border-collapse:collapse"><tr><td>`);
+
+  // Header + tiles
+  h.push(`<div style="padding:0 6px 6px"><div style="font-size:13px;color:${E.muted}"><b style="color:${E.text}">Research Pulse</b> · Kavita's weekly AI research brief</div>`);
+  h.push(`<div style="font-size:24px;font-weight:700;margin-top:4px">Week of ${esc(d.label)}</div></div>`);
+  h.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-top:6px">`);
+  h.push(`<tr>${tile(d.topline.papers_checked.toLocaleString("en-IN"), "papers checked (new)")}${tile(String(d.topics.length), "topics covered")}</tr>`);
+  h.push(`<tr>${tile(String(inBrief), "papers in this brief")}${tile(String(d.topline.blogs_checked), `blogs checked · ${d.topline.blogs_no_paper} with no paper`)}</tr></table>`);
+  h.push(`<div style="font-size:12px;color:${E.faint};padding:6px 6px 0">${toplineText(d.topline).slice(2).map(esc).join(" · ")}</div>`);
   t.push(`RESEARCH PULSE — week of ${d.label}`, "", ...toplineText(d.topline), "");
 
   for (const topic of d.topics) {
     const more = `${base}/papers?brief=${briefId}&topic=${topic.topic_id}`;
-    h.push(`<h2 style="font-size:16px;margin:26px 0 4px;border-bottom:1px solid #e5e7eb;padding-bottom:4px">${esc(topic.name)}</h2>`);
-    h.push(`<p style="margin:4px 0 10px"><b>What's changing:</b> ${esc(topic.whats_changing)}</p>`);
+    h.push(`<div style="padding:28px 6px 0"><div style="font-size:19px;font-weight:700">${esc(topic.name)}</div>`);
+    h.push(`<div style="margin:10px 0 14px;padding:10px 14px;background:${E.accentSoft};border-left:3px solid ${E.accent};border-radius:0 8px 8px 0;font-size:14px"><b style="color:${E.accent}">What's changing:</b> ${esc(topic.whats_changing)}</div></div>`);
     t.push(`== ${topic.name.toUpperCase()} ==`, `What's changing: ${topic.whats_changing}`);
     if (topic.quiet) {
-      h.push(`<p style="margin:4px 0;color:#6b7280"><b>Quiet week</b> — no paper scored 5 or more.</p>`);
+      h.push(`<div style="padding:0 6px 8px;font-size:14px;color:${E.muted}">Quiet week — no paper scored 5 or more.</div>`);
       t.push("Quiet week — no paper scored 5 or more.");
     }
     for (const id of topic.in_brief) {
       const i = byId.get(id);
       if (!i) continue;
-      h.push(`<div style="margin:12px 0 16px;padding-left:12px;border-left:3px solid #2563eb">`);
-      h.push(`<a href="${esc(i.url)}" style="font-weight:600;font-size:15px;color:#1d4ed8;text-decoration:none">${esc(i.title)}</a>`);
-      if (i.older) h.push(`<div style="font-size:12px;color:#b45309">${esc(olderLabel(i.published_year))}</div>`);
-      h.push(`<div style="font-size:12px;color:#6b7280;margin-top:2px">${cardFacts(i).map(esc).join(" · ")}${i.code_url ? ` · <a href="${esc(i.code_url)}" style="color:#6b7280">code</a>` : ""}</div>`);
-      h.push(`<p style="font-size:14px;margin:6px 0 2px"><b>What it's about:</b> ${esc(aboutText(i))}</p>`);
-      h.push(`<p style="font-size:14px;margin:2px 0"><b>Why it may matter:</b> ${esc(whyText(i))}</p>`);
-      h.push(`<div>${MARK_KINDS.map((k) => `<a href="${markLink(base, i.id, k)}" style="${btn}">${esc(MARK_LABEL[k])}</a>`).join("")}</div>`);
+      const f = facts(i); // [status, citations, upvotes, code, blogs]
+      const badges = [
+        i.type && EMAIL_TYPE[i.type] ? pill(EMAIL_TYPE[i.type], E.accentSoft, E.accent) : "",
+        i.pub_status === "peer_reviewed" ? pill("Peer-reviewed", "#ecf7ef", "#166534") : pill("Preprint", "#f1f3f6", E.muted),
+        i.score !== null ? pill(`${i.score}/10 suggested`, "#f1f3f6", E.text) : "",
+        i.older ? pill(olderLabel(i.published_year).replace(" — discussed this week", ""), "#f3efe6", "#6b5b3e") : "",
+      ].join("");
+      const factsLine = [
+        i.pub_status === "peer_reviewed" && i.venue ? esc(i.venue) : "",
+        esc(f[1]),
+        esc(f[2]),
+        i.code_url ? `<a href="${esc(i.code_url)}" style="color:${E.muted}">Code shared</a>` : esc(f[3]),
+        i.discussed_in.length ? `Discussed in ${i.discussed_in.map((b) => `<a href="${esc(b.url)}" style="color:${E.muted}">${esc(b.title)}</a>`).join(", ")}` : "",
+      ].filter(Boolean).join(" · ");
+      h.push(`<div style="margin:0 6px 12px;background:#ffffff;border:1px solid ${E.line};border-radius:12px;padding:18px 20px">`);
+      h.push(`<a href="${esc(i.url)}" style="font-size:16px;font-weight:700;line-height:1.35;color:${E.text};text-decoration:none">${esc(i.title)}</a>`);
+      h.push(`<div style="margin-top:8px">${badges}</div>`);
+      h.push(`<div style="font-size:12px;color:${E.muted}">${factsLine}</div>`);
+      h.push(`${emailLabel("What it's about")}<div style="font-size:14px">${esc(aboutText(i))}</div>`);
+      h.push(`${emailLabel("Why it may matter")}<div style="font-size:14px">${esc(whyText(i))}</div>`);
+      h.push(`<div style="margin-top:14px;padding-top:12px;border-top:1px solid ${E.line}">${MARK_KINDS.map((k) => `<a href="${markLink(base, i.id, k)}" style="${btn}">${esc(MARK_LABEL[k])}</a>`).join("")}</div>`);
       h.push(`</div>`);
       t.push(
         "",
@@ -313,15 +359,16 @@ export function renderEmail(briefId: number, d: DashboardBrief, items: ItemView[
       const i = byId.get(id);
       if (!i) continue;
       const where = topicName.get(i.also_shown_in ?? -1) ?? "another topic";
-      h.push(`<p style="font-size:13px;margin:6px 0">Also relevant here: <a href="${esc(i.url)}" style="color:#1d4ed8">${esc(i.title)}</a> (see ${esc(where)})</p>`);
+      h.push(`<div style="padding:2px 6px 6px;font-size:13px;color:${E.muted}">Also relevant here: <a href="${esc(i.url)}" style="color:${E.muted}">${esc(i.title)}</a> (see ${esc(where)})</div>`);
       t.push("", `Also relevant here: ${i.title} (see ${where})`);
     }
-    h.push(`<a href="${more}" style="font-size:13px;color:#1d4ed8">+ ${topic.more_count} more papers checked</a>`);
+    h.push(`<div style="padding:6px 6px 0"><a href="${more}" style="font-size:14px;font-weight:600;color:${E.accent};text-decoration:none">+ ${topic.more_count} more papers checked →</a></div>`);
     t.push("", `+ ${topic.more_count} more papers checked: ${more}`, "");
   }
 
-  h.push(`<p style="margin-top:28px;font-size:13px;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:10px">${esc(FOOTER)}</p>`);
-  h.push(`<p style="font-size:13px;color:#6b7280">Something important missing? <a href="${base}/#missed">You missed this?</a> · <a href="${base}/">Open the dashboard</a> · Feedback links work for 14 days.</p></div>`);
+  h.push(`<div style="margin:32px 6px 0;padding-top:14px;border-top:1px solid ${E.line};font-size:13px;color:${E.muted};text-align:center">${esc(FOOTER)}<br>`);
+  h.push(`<a href="${base}/#missed" style="color:${E.accent}">You missed this?</a> · <a href="${base}/" style="color:${E.accent}">Open the dashboard</a> · Feedback links work for 14 days.</div>`);
+  h.push(`</td></tr></table></div>`);
   t.push(FOOTER, `You missed this? ${base}/#missed`, `Dashboard: ${base}/`);
   return { subject, html: h.join("\n"), text: t.join("\n") };
 }
